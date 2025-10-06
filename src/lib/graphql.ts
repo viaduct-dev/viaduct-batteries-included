@@ -6,7 +6,7 @@ interface GraphQLResponse<T> {
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 export async function executeGraphQL<T>(query: string, variables?: Record<string, any>): Promise<T> {
   const { data: session } = await supabase.auth.getSession();
