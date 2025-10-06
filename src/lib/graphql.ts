@@ -5,6 +5,9 @@ interface GraphQLResponse<T> {
   errors?: Array<{ message: string }>;
 }
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
 export async function executeGraphQL<T>(query: string, variables?: Record<string, any>): Promise<T> {
   const { data: session } = await supabase.auth.getSession();
   
@@ -12,11 +15,11 @@ export async function executeGraphQL<T>(query: string, variables?: Record<string
     throw new Error("Not authenticated");
   }
 
-  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/graphql/v1`, {
+  const response = await fetch(`${SUPABASE_URL}/graphql/v1`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+      "apikey": SUPABASE_ANON_KEY,
       "Authorization": `Bearer ${session.session.access_token}`,
     },
     body: JSON.stringify({
