@@ -83,3 +83,31 @@ export const DELETE_CHECKLIST_ITEM = `
     deleteChecklistItem(input: { id: $id })
   }
 `;
+
+export const SET_USER_ADMIN = `
+  mutation SetUserAdmin($userId: String!, $isAdmin: Boolean!) {
+    setUserAdmin(input: {
+      userId: $userId
+      isAdmin: $isAdmin
+    })
+  }
+`;
+
+export const GET_USERS = `
+  query GetUsers {
+    users {
+      id
+      email
+      isAdmin
+      createdAt
+    }
+  }
+`;
+
+export const DELETE_USER = `
+  mutation DeleteUser($userId: String!) {
+    deleteUser(input: {
+      userId: $userId
+    })
+  }
+`;

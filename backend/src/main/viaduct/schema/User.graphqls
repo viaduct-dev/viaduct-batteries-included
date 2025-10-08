@@ -1,0 +1,24 @@
+"""
+A user in the system.
+"""
+type User @scope(to: ["admin"]) {
+  """
+  The user's unique identifier.
+  """
+  id: ID!
+
+  """
+  The user's email address.
+  """
+  email: String!
+
+  """
+  Whether the user is an admin.
+  """
+  isAdmin: Boolean!
+
+  """
+  When the user was created.
+  """
+  createdAt: String!
+}

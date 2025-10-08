@@ -4,3 +4,10 @@ extend type Query @scope(to: ["default"]) {
   """
   checklistItems: [ChecklistItem!]! @resolver
 }
+
+extend type Query @scope(to: ["admin"]) {
+  """
+  Get all users in the system. Only admins can view all users.
+  """
+  users: [User!]! @resolver
+}

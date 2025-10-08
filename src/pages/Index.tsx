@@ -4,10 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { ChecklistItem } from "@/components/ChecklistItem";
 import { AddItemForm } from "@/components/AddItemForm";
+import { UserList } from "@/components/UserList";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, CheckCircle2 } from "lucide-react";
+import { LogOut, CheckCircle2, Shield } from "lucide-react";
 import {
   executeGraphQL,
   GET_CHECKLIST_ITEMS,
@@ -28,12 +29,16 @@ const Index = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [items, setItems] = useState<ChecklistItemType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session?.user?.app_metadata?.is_admin) {
+        setIsAdmin(true);
+      }
       if (!session) {
         navigate("/auth");
       }
@@ -43,6 +48,11 @@ const Index = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session?.user?.app_metadata?.is_admin) {
+        setIsAdmin(true);
+      } else {
+        setIsAdmin(false);
+      }
       if (!session) {
         navigate("/auth");
       }
@@ -160,9 +170,17 @@ const Index = () => {
             <div className="p-2 rounded-xl bg-gradient-to-br from-primary to-primary-glow">
               <CheckCircle2 className="h-6 w-6 text-white" />
             </div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-              My Checklist
-            </h1>
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
+                My Checklist
+              </h1>
+              {isAdmin && (
+                <div className="flex items-center gap-1 text-xs text-primary font-medium mt-1">
+                  <Shield className="h-3 w-3" />
+                  <span>Admin</span>
+                </div>
+              )}
+            </div>
           </div>
           <Button
             variant="outline"
@@ -173,6 +191,8 @@ const Index = () => {
             Sign Out
           </Button>
         </div>
+
+        {isAdmin && <UserList />}
 
         <Card className="shadow-elegant">
           <CardHeader>

@@ -11,6 +11,9 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.plugins.cors.routing.CORS
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import viaduct.service.BasicViaductFactory
 import viaduct.service.SchemaRegistrationInfo
 import viaduct.service.SchemaScopeInfo
@@ -46,6 +49,9 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
                     CreateChecklistItemResolver::class.java -> CreateChecklistItemResolver(supabaseService) as T
                     UpdateChecklistItemResolver::class.java -> UpdateChecklistItemResolver(supabaseService) as T
                     DeleteChecklistItemResolver::class.java -> DeleteChecklistItemResolver(supabaseService) as T
+                    SetUserAdminResolver::class.java -> SetUserAdminResolver(supabaseService) as T
+                    UsersQueryResolver::class.java -> UsersQueryResolver(supabaseService) as T
+                    DeleteUserResolver::class.java -> DeleteUserResolver(supabaseService) as T
                     else -> error("Unknown resolver class: ${clazz.name}")
                 }
             }
@@ -53,9 +59,13 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
     }
 
     // Build Viaduct service using BasicViaductFactory
+    // Register two schemas: one with default scope, one with admin scope
     val viaduct = BasicViaductFactory.create(
         schemaRegistrationInfo = SchemaRegistrationInfo(
-            scopes = listOf(SchemaScopeInfo("default", setOf("default")))
+            scopes = listOf(
+                SchemaScopeInfo("default", setOf("default")),
+                SchemaScopeInfo("admin", setOf("default", "admin"))
+            )
         ),
         tenantRegistrationInfo = TenantRegistrationInfo(
             tenantPackagePrefix = "com.graphqlcheckmate",
@@ -99,11 +109,20 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
                         // First, verify the token with Supabase Auth
                         val userInfo = supabaseService.verifyToken(accessToken)
 
+                        // Extract admin status from app_metadata
+                        // The appMetadata is a Map<String, JsonElement?> from kotlinx.serialization
+                        val isAdminValue = userInfo.appMetadata?.get("is_admin")
+                        val isAdmin = when (isAdminValue) {
+                            is JsonPrimitive -> isAdminValue.booleanOrNull ?: false
+                            else -> false
+                        }
+
                         // Create a serializable request context
                         // Resolvers will create authenticated clients on-demand from this context
                         GraphQLRequestContext(
                             userId = userInfo.id,
-                            accessToken = accessToken
+                            accessToken = accessToken,
+                            isAdmin = isAdmin
                         )
                     } catch (e: Exception) {
                         call.respond(
@@ -121,9 +140,12 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
                     return@post
                 }
 
+                // Determine schema ID based on user's admin status
+                val schemaId = if (requestContext.isAdmin) "admin" else "default"
+
                 // Build Viaduct ExecutionInput
                 val executionInput = ViaductExecutionInput.create(
-                    schemaId = "default",
+                    schemaId = schemaId,
                     operationText = query,
                     variables = variables,
                     requestContext = requestContext

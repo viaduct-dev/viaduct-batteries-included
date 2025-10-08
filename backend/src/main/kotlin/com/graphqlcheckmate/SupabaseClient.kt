@@ -7,8 +7,14 @@ import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.user.UserInfo
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
+import io.ktor.client.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.client.call.*
+import io.ktor.http.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import kotlinx.serialization.json.Json
 
 @Serializable
 data class ChecklistItemEntity(
@@ -18,6 +24,14 @@ data class ChecklistItemEntity(
     val user_id: String,
     val created_at: String,
     val updated_at: String
+)
+
+@Serializable
+data class UserEntity(
+    val id: String,
+    val email: String,
+    val raw_app_meta_data: Map<String, kotlinx.serialization.json.JsonElement>? = null,
+    val created_at: String
 )
 
 /**
@@ -45,12 +59,13 @@ data class UpdateChecklistItemInput(
 @Serializable
 data class GraphQLRequestContext(
     val userId: String,
-    val accessToken: String
+    val accessToken: String,
+    val isAdmin: Boolean = false
 )
 
 class SupabaseService(
-    private val supabaseUrl: String,
-    private val supabaseKey: String
+    val supabaseUrl: String,
+    val supabaseKey: String
 ) {
     // Admin client for token verification only
     private val adminClient: SupabaseClient = createSupabaseClient(
@@ -85,7 +100,7 @@ class SupabaseService(
             install(Postgrest)
         }
 
-        return AuthenticatedSupabaseClient(client)
+        return AuthenticatedSupabaseClient(client, accessToken, supabaseUrl, supabaseKey)
     }
 
     /**
@@ -105,8 +120,13 @@ class SupabaseService(
  * This client uses the user's JWT token, so RLS policies will be enforced automatically
  */
 class AuthenticatedSupabaseClient(
-    private val client: SupabaseClient
+    private val client: SupabaseClient,
+    private val accessToken: String,
+    private val supabaseUrl: String,
+    private val supabaseKey: String
 ) {
+    private val httpClient = HttpClient()
+    private val json = Json { ignoreUnknownKeys = true }
 
     /**
      * Get all checklist items for the authenticated user
@@ -178,6 +198,51 @@ class AuthenticatedSupabaseClient(
                     eq("id", id)
                 }
             }
+        return true
+    }
+
+    /**
+     * Set a user's admin status
+     * Calls the set_user_admin PostgreSQL function
+     * Only admins can call this (enforced by the database function)
+     */
+    suspend fun callSetUserAdmin(userId: String, isAdmin: Boolean) {
+        // Call the PostgreSQL RPC function via HTTP
+        httpClient.post("$supabaseUrl/rest/v1/rpc/set_user_admin") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            contentType(ContentType.Application.Json)
+            setBody("""{"target_user_id":"$userId","is_admin":$isAdmin}""")
+        }
+    }
+
+    /**
+     * Get all users in the system
+     * Only admins can call this
+     */
+    suspend fun getAllUsers(): List<UserEntity> {
+        // Call the PostgreSQL RPC function via HTTP
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/rpc/get_all_users") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            contentType(ContentType.Application.Json)
+        }
+        val jsonString = response.bodyAsText()
+        return json.decodeFromString(jsonString)
+    }
+
+    /**
+     * Delete a user from the system
+     * Only admins can call this
+     */
+    suspend fun deleteUser(userId: String): Boolean {
+        // Call the PostgreSQL RPC function via HTTP
+        httpClient.post("$supabaseUrl/rest/v1/rpc/delete_user_by_id") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            contentType(ContentType.Application.Json)
+            setBody("""{"user_id":"$userId"}""")
+        }
         return true
     }
 }
