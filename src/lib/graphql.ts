@@ -5,22 +5,21 @@ interface GraphQLResponse<T> {
   errors?: Array<{ message: string }>;
 }
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const GRAPHQL_ENDPOINT = import.meta.env.VITE_GRAPHQL_ENDPOINT || "http://localhost:8080/graphql";
 
 export async function executeGraphQL<T>(query: string, variables?: Record<string, any>): Promise<T> {
   const { data: session } = await supabase.auth.getSession();
-  
+
   if (!session.session) {
     throw new Error("Not authenticated");
   }
 
-  const response = await fetch(`${SUPABASE_URL}/graphql/v1`, {
+  const response = await fetch(GRAPHQL_ENDPOINT, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "apikey": SUPABASE_ANON_KEY,
       "Authorization": `Bearer ${session.session.access_token}`,
+      "X-User-Id": session.session.user.id,
     },
     body: JSON.stringify({
       query,
@@ -40,60 +39,47 @@ export async function executeGraphQL<T>(query: string, variables?: Record<string
 // GraphQL queries and mutations
 export const GET_CHECKLIST_ITEMS = `
   query GetChecklistItems {
-    checklist_itemsCollection {
-      edges {
-        node {
-          id
-          title
-          completed
-          created_at
-          updated_at
-        }
-      }
+    checklistItems {
+      id
+      title
+      completed
+      createdAt
+      updatedAt
     }
   }
 `;
 
 export const CREATE_CHECKLIST_ITEM = `
-  mutation CreateChecklistItem($title: String!, $user_id: UUID!) {
-    insertIntochecklist_itemsCollection(objects: [{
+  mutation CreateChecklistItem($title: String!, $userId: String!) {
+    createChecklistItem(input: {
       title: $title
-      user_id: $user_id
-      completed: false
-    }]) {
-      records {
-        id
-        title
-        completed
-        created_at
-        updated_at
-      }
+      userId: $userId
+    }) {
+      id
+      title
+      completed
+      createdAt
+      updatedAt
     }
   }
 `;
 
 export const UPDATE_CHECKLIST_ITEM = `
-  mutation UpdateChecklistItem($id: UUID!, $completed: Boolean!) {
-    updatechecklist_itemsCollection(
-      filter: { id: { eq: $id } }
-      set: { completed: $completed }
-    ) {
-      records {
-        id
-        title
-        completed
-        updated_at
-      }
+  mutation UpdateChecklistItem($id: ID!, $completed: Boolean!) {
+    updateChecklistItem(input: {
+      id: $id
+      completed: $completed
+    }) {
+      id
+      title
+      completed
+      updatedAt
     }
   }
 `;
 
 export const DELETE_CHECKLIST_ITEM = `
-  mutation DeleteChecklistItem($id: UUID!) {
-    deleteFromchecklist_itemsCollection(filter: { id: { eq: $id } }) {
-      records {
-        id
-      }
-    }
+  mutation DeleteChecklistItem($id: ID!) {
+    deleteChecklistItem(input: { id: $id })
   }
 `;

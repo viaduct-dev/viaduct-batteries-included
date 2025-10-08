@@ -20,8 +20,8 @@ interface ChecklistItemType {
   id: string;
   title: string;
   completed: boolean;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 const Index = () => {
@@ -61,12 +61,10 @@ const Index = () => {
     try {
       setLoading(true);
       const data = await executeGraphQL<{
-        checklist_itemsCollection: {
-          edges: Array<{ node: ChecklistItemType }>;
-        };
+        checklistItems: ChecklistItemType[];
       }>(GET_CHECKLIST_ITEMS);
 
-      setItems(data.checklist_itemsCollection.edges.map((edge) => edge.node));
+      setItems(data.checklistItems);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -84,7 +82,7 @@ const Index = () => {
     try {
       await executeGraphQL(CREATE_CHECKLIST_ITEM, {
         title,
-        user_id: session.user.id,
+        userId: session.user.id,
       });
 
       toast({

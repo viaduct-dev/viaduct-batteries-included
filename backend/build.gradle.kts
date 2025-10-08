@@ -1,0 +1,64 @@
+plugins {
+    alias(libs.plugins.kotlinJvm)
+    alias(libs.plugins.viaduct.application)
+    alias(libs.plugins.viaduct.module)
+    kotlin("plugin.serialization") version "1.9.24"
+    application
+}
+
+viaductApplication {
+    modulePackagePrefix.set("com.graphqlcheckmate")
+}
+
+viaductModule {
+    modulePackageSuffix.set("resolvers")
+}
+
+dependencies {
+    // Ktor server
+    implementation("io.ktor:ktor-server-core:2.3.7")
+    implementation("io.ktor:ktor-server-netty:2.3.7")
+    implementation("io.ktor:ktor-server-content-negotiation:2.3.7")
+    implementation("io.ktor:ktor-serialization-jackson:2.3.7")
+    implementation("io.ktor:ktor-server-cors:2.3.7")
+
+    // Kotlin and coroutines
+    implementation(libs.kotlin.reflect)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+
+    // Jackson for JSON
+    implementation(libs.jackson.module.kotlin)
+
+    // Logging
+    implementation("ch.qos.logback:logback-classic:1.4.11")
+
+    // Supabase Kotlin client
+    implementation(libs.supabase.postgrest.kt)
+    implementation(libs.supabase.auth.kt)
+    implementation(libs.ktor.client.cio)
+
+    // Ktor test dependencies
+    testImplementation("io.ktor:ktor-server-test-host:2.3.7")
+    testImplementation("io.ktor:ktor-client-content-negotiation:2.3.7")
+
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
+    testImplementation(libs.io.mockk.jvm)
+    testImplementation(libs.kotest.runner.junit)
+    testImplementation(libs.kotest.assertions.core)
+    testImplementation(libs.kotest.assertions.json)
+}
+
+application {
+    mainClass.set("io.ktor.server.netty.EngineMain")
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
+}
+
+tasks.withType<JavaExec> {
+    jvmArgs = listOf(
+        "--add-opens", "java.base/java.lang=ALL-UNNAMED"
+    )
+}

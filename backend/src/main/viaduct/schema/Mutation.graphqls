@@ -1,0 +1,39 @@
+"""
+Input for creating a new checklist item.
+"""
+input CreateChecklistItemInput @scope(to: ["default"]) {
+  title: String!
+  userId: String!
+}
+
+"""
+Input for updating a checklist item.
+"""
+input UpdateChecklistItemInput @scope(to: ["default"]) {
+  id: ID! @idOf(type: "ChecklistItem")
+  completed: Boolean!
+}
+
+"""
+Input for deleting a checklist item.
+"""
+input DeleteChecklistItemInput @scope(to: ["default"]) {
+  id: ID! @idOf(type: "ChecklistItem")
+}
+
+extend type Mutation @scope(to: ["default"]) {
+  """
+  Create a new checklist item.
+  """
+  createChecklistItem(input: CreateChecklistItemInput!): ChecklistItem! @resolver
+
+  """
+  Update a checklist item's completion status.
+  """
+  updateChecklistItem(input: UpdateChecklistItemInput!): ChecklistItem! @resolver
+
+  """
+  Delete a checklist item.
+  """
+  deleteChecklistItem(input: DeleteChecklistItemInput!): Boolean! @resolver
+}

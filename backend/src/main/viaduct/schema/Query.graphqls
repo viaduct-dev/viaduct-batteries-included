@@ -1,0 +1,6 @@
+extend type Query @scope(to: ["default"]) {
+  """
+  Get all checklist items for the authenticated user.
+  """
+  checklistItems: [ChecklistItem!]! @resolver
+}

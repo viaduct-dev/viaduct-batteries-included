@@ -1,3 +1,10 @@
+# Frontend (Node.js/Vite/React)
+node_modules
+dist
+dist-ssr
+*.local
+.vite
+
 # Logs
 logs
 *.log
@@ -7,10 +14,29 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Backend (Kotlin/Gradle)
+backend/build/
+backend/.gradle/
+backend/bin/
+backend/out/
+backend/.classpath
+backend/.project
+backend/.settings/
+*.class
+*.iml
+*.iws
+*.ipr
+# Keep gradle wrapper
+!backend/gradle/wrapper/gradle-wrapper.jar
+
+# Supabase local state
+supabase/.branches/
+supabase/.temp/
+
+# Environment files
+.env
+.env.local
+.env.*.local
 
 # Editor directories and files
 .vscode/*
@@ -22,3 +48,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
