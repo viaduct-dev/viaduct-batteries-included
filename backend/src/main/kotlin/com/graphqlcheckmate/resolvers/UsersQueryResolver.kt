@@ -1,22 +1,18 @@
 package com.graphqlcheckmate.resolvers
 
 import viaduct.api.grts.User
-import com.graphqlcheckmate.SupabaseService
 import com.graphqlcheckmate.resolvers.resolverbases.QueryResolvers
+import com.graphqlcheckmate.services.UserService
 import viaduct.api.Resolver
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 
 @Resolver
 class UsersQueryResolver(
-    private val supabaseService: SupabaseService
+    private val userService: UserService
 ) : QueryResolvers.Users() {
     override suspend fun resolve(ctx: Context): List<User> {
-        // Get authenticated client from request context
-        val authenticatedClient = supabaseService.getAuthenticatedClient(ctx.requestContext)
-
-        // Get all users from auth.users
-        val userEntities = authenticatedClient.getAllUsers()
+        val userEntities = userService.getAllUsers(ctx.requestContext)
 
         return userEntities.map { entity ->
             // Extract is_admin from raw_app_meta_data

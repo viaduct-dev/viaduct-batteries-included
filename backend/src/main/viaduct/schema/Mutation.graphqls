@@ -1,7 +1,7 @@
 """
 Input for creating a new checklist item.
 """
-input CreateChecklistItemInput @scope(to: ["admin"]) {
+input CreateChecklistItemInput @scope(to: ["default"]) {
   title: String!
   userId: String!
 }
@@ -9,7 +9,7 @@ input CreateChecklistItemInput @scope(to: ["admin"]) {
 """
 Input for updating a checklist item.
 """
-input UpdateChecklistItemInput @scope(to: ["admin"]) {
+input UpdateChecklistItemInput @scope(to: ["default"]) {
   id: ID! @idOf(type: "ChecklistItem")
   completed: Boolean!
 }
@@ -17,7 +17,7 @@ input UpdateChecklistItemInput @scope(to: ["admin"]) {
 """
 Input for deleting a checklist item.
 """
-input DeleteChecklistItemInput @scope(to: ["admin"]) {
+input DeleteChecklistItemInput @scope(to: ["default"]) {
   id: ID! @idOf(type: "ChecklistItem")
 }
 
@@ -36,22 +36,24 @@ input DeleteUserInput @scope(to: ["admin"]) {
   userId: String!
 }
 
-extend type Mutation @scope(to: ["admin"]) {
+extend type Mutation @scope(to: ["default"]) {
   """
-  Create a new checklist item. Only admins can create items.
+  Create a new checklist item. Users can create their own items.
   """
   createChecklistItem(input: CreateChecklistItemInput!): ChecklistItem! @resolver
 
   """
-  Update a checklist item's completion status. Only admins can update items.
+  Update a checklist item's completion status. Users can update their own items.
   """
   updateChecklistItem(input: UpdateChecklistItemInput!): ChecklistItem! @resolver
 
   """
-  Delete a checklist item. Only admins can delete items.
+  Delete a checklist item. Users can delete their own items.
   """
   deleteChecklistItem(input: DeleteChecklistItemInput!): Boolean! @resolver
+}
 
+extend type Mutation @scope(to: ["admin"]) {
   """
   Set a user's admin status. Only admins can set admin status.
   """

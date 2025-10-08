@@ -1,22 +1,18 @@
 package com.graphqlcheckmate.resolvers
 
 import viaduct.api.grts.ChecklistItem
-import com.graphqlcheckmate.AuthenticatedSupabaseClient
-import com.graphqlcheckmate.SupabaseService
 import com.graphqlcheckmate.resolvers.NodeResolvers
+import com.graphqlcheckmate.services.ChecklistItemService
 import viaduct.api.Resolver
 
 @Resolver
 class ChecklistItemNodeResolver(
-    private val supabaseService: SupabaseService
+    private val checklistItemService: ChecklistItemService
 ) : NodeResolvers.ChecklistItem() {
     override suspend fun resolve(ctx: Context): ChecklistItem {
-        // Get authenticated client from request context
-        val authenticatedClient = supabaseService.getAuthenticatedClient(ctx.requestContext)
-
         val globalId = ctx.id
         val internalId = globalId.internalID
-        val entity = authenticatedClient.getChecklistItemById(internalId)
+        val entity = checklistItemService.getChecklistItemById(ctx.requestContext, internalId)
             ?: throw IllegalArgumentException("ChecklistItem not found: $internalId")
 
         return ChecklistItem.Builder(ctx)

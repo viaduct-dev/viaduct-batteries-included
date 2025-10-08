@@ -32,6 +32,10 @@ dependencies {
     // Logging
     implementation("ch.qos.logback:logback-classic:1.4.11")
 
+    // Koin for dependency injection
+    implementation("io.insert-koin:koin-core:3.5.3")
+    implementation("io.insert-koin:koin-ktor:3.5.3")
+
     // Supabase Kotlin client
     implementation(libs.supabase.postgrest.kt)
     implementation(libs.supabase.auth.kt)

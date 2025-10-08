@@ -1,21 +1,16 @@
 package com.graphqlcheckmate.resolvers
 
 import viaduct.api.grts.ChecklistItem
-import com.graphqlcheckmate.AuthenticatedSupabaseClient
-import com.graphqlcheckmate.SupabaseService
 import com.graphqlcheckmate.resolvers.resolverbases.QueryResolvers
+import com.graphqlcheckmate.services.ChecklistItemService
 import viaduct.api.Resolver
 
 @Resolver
 class ChecklistItemsQueryResolver(
-    private val supabaseService: SupabaseService
+    private val checklistItemService: ChecklistItemService
 ) : QueryResolvers.ChecklistItems() {
     override suspend fun resolve(ctx: Context): List<ChecklistItem> {
-        // Get authenticated client from request context
-        val authenticatedClient = supabaseService.getAuthenticatedClient(ctx.requestContext)
-
-        // Use the authenticated client - RLS will automatically filter by user
-        val entities = authenticatedClient.getChecklistItems()
+        val entities = checklistItemService.getChecklistItems(ctx.requestContext)
 
         return entities.map { entity ->
             ChecklistItem.Builder(ctx)

@@ -2,25 +2,22 @@ package com.graphqlcheckmate
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.graphqlcheckmate.resolvers.*
+import com.graphqlcheckmate.config.KoinTenantCodeInjector
+import com.graphqlcheckmate.config.appModule
+import com.graphqlcheckmate.services.AuthService
 import io.ktor.http.*
 import io.ktor.server.application.*
-import io.ktor.server.engine.*
-import io.ktor.server.netty.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.plugins.cors.routing.CORS
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
+import org.koin.core.context.startKoin
+import org.koin.core.context.stopKoin
 import viaduct.service.BasicViaductFactory
 import viaduct.service.SchemaRegistrationInfo
 import viaduct.service.SchemaScopeInfo
 import viaduct.service.TenantRegistrationInfo
 import viaduct.service.api.ExecutionInput as ViaductExecutionInput
-import viaduct.service.api.spi.TenantCodeInjector
-import javax.inject.Provider
 
 /**
  * Configure the Ktor application with GraphQL and authentication
@@ -36,27 +33,23 @@ fun Application.module() {
  * Configure the application with the given Supabase credentials
  */
 fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
-    val supabaseService = SupabaseService(supabaseUrl, supabaseKey)
-
-    // Create custom TenantCodeInjector to provide resolver dependencies
-    val customInjector = object : TenantCodeInjector {
-        override fun <T> getProvider(clazz: Class<T>): Provider<T> {
-            return Provider {
-                @Suppress("UNCHECKED_CAST")
-                when (clazz) {
-                    ChecklistItemsQueryResolver::class.java -> ChecklistItemsQueryResolver(supabaseService) as T
-                    ChecklistItemNodeResolver::class.java -> ChecklistItemNodeResolver(supabaseService) as T
-                    CreateChecklistItemResolver::class.java -> CreateChecklistItemResolver(supabaseService) as T
-                    UpdateChecklistItemResolver::class.java -> UpdateChecklistItemResolver(supabaseService) as T
-                    DeleteChecklistItemResolver::class.java -> DeleteChecklistItemResolver(supabaseService) as T
-                    SetUserAdminResolver::class.java -> SetUserAdminResolver(supabaseService) as T
-                    UsersQueryResolver::class.java -> UsersQueryResolver(supabaseService) as T
-                    DeleteUserResolver::class.java -> DeleteUserResolver(supabaseService) as T
-                    else -> error("Unknown resolver class: ${clazz.name}")
-                }
-            }
+    // Initialize Koin for dependency injection
+    val koinApp = try {
+        startKoin {
+            modules(appModule(supabaseUrl, supabaseKey))
+        }
+    } catch (e: Exception) {
+        // Koin already started (e.g., in tests), stop and restart
+        stopKoin()
+        startKoin {
+            modules(appModule(supabaseUrl, supabaseKey))
         }
     }
+
+    val koin = koinApp.koin
+
+    // Use Koin-based dependency injector for Viaduct resolvers
+    val koinInjector = KoinTenantCodeInjector(koin)
 
     // Build Viaduct service using BasicViaductFactory
     // Register two schemas: one with default scope, one with admin scope
@@ -69,9 +62,12 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
         ),
         tenantRegistrationInfo = TenantRegistrationInfo(
             tenantPackagePrefix = "com.graphqlcheckmate",
-            tenantCodeInjector = customInjector
+            tenantCodeInjector = koinInjector
         )
     )
+
+    // Get AuthService from Koin
+    val authService = koin.get<AuthService>()
 
     val objectMapper: ObjectMapper = jacksonObjectMapper()
 
@@ -106,24 +102,8 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
 
                 val requestContext: GraphQLRequestContext = if (accessToken != null && accessToken.isNotEmpty()) {
                     try {
-                        // First, verify the token with Supabase Auth
-                        val userInfo = supabaseService.verifyToken(accessToken)
-
-                        // Extract admin status from app_metadata
-                        // The appMetadata is a Map<String, JsonElement?> from kotlinx.serialization
-                        val isAdminValue = userInfo.appMetadata?.get("is_admin")
-                        val isAdmin = when (isAdminValue) {
-                            is JsonPrimitive -> isAdminValue.booleanOrNull ?: false
-                            else -> false
-                        }
-
-                        // Create a serializable request context
-                        // Resolvers will create authenticated clients on-demand from this context
-                        GraphQLRequestContext(
-                            userId = userInfo.id,
-                            accessToken = accessToken,
-                            isAdmin = isAdmin
-                        )
+                        // Use AuthService to create request context from token
+                        authService.createRequestContext(accessToken)
                     } catch (e: Exception) {
                         call.respond(
                             HttpStatusCode.Unauthorized,
@@ -140,8 +120,8 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
                     return@post
                 }
 
-                // Determine schema ID based on user's admin status
-                val schemaId = if (requestContext.isAdmin) "admin" else "default"
+                // Use AuthService to determine schema ID
+                val schemaId = authService.getSchemaId(requestContext)
 
                 // Build Viaduct ExecutionInput
                 val executionInput = ViaductExecutionInput.create(
