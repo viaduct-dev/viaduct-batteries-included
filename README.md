@@ -1,73 +1,65 @@
-# Welcome to your Lovable project
+# GraphQL Checkmate
 
-## Project info
+A modern checklist application demonstrating a three-tier architecture with GraphQL middleware.
 
-**URL**: https://lovable.dev/projects/be4f049d-baa1-4d1e-89a9-8c73750f8724
+## Architecture
 
-## How can I edit this code?
+- **Frontend**: React + Vite with shadcn/ui components (TypeScript)
+- **Backend**: Viaduct GraphQL middleware layer (Kotlin/Ktor)
+- **Database**: Supabase PostgreSQL with Row Level Security
 
-There are several ways of editing your application.
+The backend provides a type-safe GraphQL API that sits between the React frontend and Supabase, enabling efficient data fetching with batch resolution and modular schema organization.
 
-**Use Lovable**
+## Quick Start
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/be4f049d-baa1-4d1e-89a9-8c73750f8724) and start prompting.
+This project uses [mise](https://mise.jdx.dev/) for unified tool management and orchestration:
 
-Changes made via Lovable will be committed automatically to this repo.
+```bash
+# Install all dependencies (Java 21, Podman, Supabase CLI, etc.)
+mise install
 
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+# Start the full development environment
+mise run dev
 ```
 
-**Edit a file directly in GitHub**
+This will start:
+- Frontend at http://localhost:5173
+- Backend GraphQL API at http://localhost:8080/graphql
+- GraphiQL playground at http://localhost:8080/graphiql
+- Supabase Studio at http://127.0.0.1:54323
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Documentation
 
-**Use GitHub Codespaces**
+**For detailed setup, development commands, architecture details, and troubleshooting, see [CLAUDE.md](./CLAUDE.md)**
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+The CLAUDE.md file contains comprehensive documentation including:
+- Complete development commands (mise, npm, gradle, supabase)
+- Architecture and request flow details
+- GraphQL API reference with example queries
+- Environment configuration
+- Database schema
+- Troubleshooting guide
 
-## What technologies are used for this project?
+## Technology Stack
 
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
+**Frontend:**
+- React 18 with TypeScript
+- Vite for build tooling
+- shadcn/ui components
 - Tailwind CSS
+- Supabase Auth client
 
-## How can I deploy this project?
+**Backend:**
+- Viaduct GraphQL framework
+- Kotlin with Ktor
+- Supabase Kotlin client
+- GraphQL Java
 
-Simply open [Lovable](https://lovable.dev/projects/be4f049d-baa1-4d1e-89a9-8c73750f8724) and click on Share -> Publish.
+**Infrastructure:**
+- Supabase (PostgreSQL + Auth + Realtime)
+- Podman for local containers
+- mise for tool orchestration
 
-## Can I connect a custom domain to my Lovable project?
+## Project Origin
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+This project was bootstrapped with [Lovable](https://lovable.dev/projects/be4f049d-baa1-4d1e-89a9-8c73750f8724) and extended with a Viaduct backend and Supabase integration.
