@@ -49,7 +49,7 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
     val koin = koinApp.koin
 
     // Use Koin-based dependency injector for Viaduct resolvers
-    val koinInjector = KoinTenantCodeInjector(koin)
+    val koinInjector = KoinTenantCodeInjector()
 
     // Build Viaduct service using BasicViaductFactory
     // Register two schemas: one with default scope, one with admin scope
