@@ -1,8 +1,8 @@
 extend type Query @scope(to: ["default"]) {
   """
-  Get all checklist items for the authenticated user.
+  Returns the current server time. Used to verify the API is accessible.
   """
-  checklistItems: [ChecklistItem!]! @resolver
+  ping: String! @resolver
 }
 
 extend type Query @scope(to: ["admin"]) {

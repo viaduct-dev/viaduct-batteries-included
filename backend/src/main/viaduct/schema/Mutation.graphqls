@@ -1,27 +1,4 @@
 """
-Input for creating a new checklist item.
-"""
-input CreateChecklistItemInput @scope(to: ["default"]) {
-  title: String!
-  userId: String!
-}
-
-"""
-Input for updating a checklist item.
-"""
-input UpdateChecklistItemInput @scope(to: ["default"]) {
-  id: ID! @idOf(type: "ChecklistItem")
-  completed: Boolean!
-}
-
-"""
-Input for deleting a checklist item.
-"""
-input DeleteChecklistItemInput @scope(to: ["default"]) {
-  id: ID! @idOf(type: "ChecklistItem")
-}
-
-"""
 Input for setting a user's admin status.
 """
 input SetUserAdminInput @scope(to: ["admin"]) {
@@ -34,23 +11,6 @@ Input for deleting a user.
 """
 input DeleteUserInput @scope(to: ["admin"]) {
   userId: String!
-}
-
-extend type Mutation @scope(to: ["default"]) {
-  """
-  Create a new checklist item. Users can create their own items.
-  """
-  createChecklistItem(input: CreateChecklistItemInput!): ChecklistItem! @resolver
-
-  """
-  Update a checklist item's completion status. Users can update their own items.
-  """
-  updateChecklistItem(input: UpdateChecklistItemInput!): ChecklistItem! @resolver
-
-  """
-  Delete a checklist item. Users can delete their own items.
-  """
-  deleteChecklistItem(input: DeleteChecklistItemInput!): Boolean! @resolver
 }
 
 extend type Mutation @scope(to: ["admin"]) {

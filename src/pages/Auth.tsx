@@ -70,7 +70,7 @@ export default function Auth() {
             {isLogin ? "Welcome Back" : "Create Account"}
           </CardTitle>
           <CardDescription>
-            {isLogin ? "Sign in to access your checklist" : "Sign up to get started"}
+            {isLogin ? "Sign in to access your account" : "Sign up to get started"}
           </CardDescription>
         </CardHeader>
         <CardContent>

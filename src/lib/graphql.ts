@@ -36,54 +36,7 @@ export async function executeGraphQL<T>(query: string, variables?: Record<string
   return result.data as T;
 }
 
-// GraphQL queries and mutations
-export const GET_CHECKLIST_ITEMS = `
-  query GetChecklistItems {
-    checklistItems {
-      id
-      title
-      completed
-      createdAt
-      updatedAt
-    }
-  }
-`;
-
-export const CREATE_CHECKLIST_ITEM = `
-  mutation CreateChecklistItem($title: String!, $userId: String!) {
-    createChecklistItem(input: {
-      title: $title
-      userId: $userId
-    }) {
-      id
-      title
-      completed
-      createdAt
-      updatedAt
-    }
-  }
-`;
-
-export const UPDATE_CHECKLIST_ITEM = `
-  mutation UpdateChecklistItem($id: ID!, $completed: Boolean!) {
-    updateChecklistItem(input: {
-      id: $id
-      completed: $completed
-    }) {
-      id
-      title
-      completed
-      updatedAt
-    }
-  }
-`;
-
-export const DELETE_CHECKLIST_ITEM = `
-  mutation DeleteChecklistItem($id: ID!) {
-    deleteChecklistItem(input: { id: $id })
-  }
-`;
-
+// GraphQL queries and mutations for user management
 export const SET_USER_ADMIN = `
   mutation SetUserAdmin($userId: String!, $isAdmin: Boolean!) {
     setUserAdmin(input: {
