@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.graphqlcheckmate.config.KoinTenantCodeInjector
 import com.graphqlcheckmate.config.appModule
+import com.graphqlcheckmate.policy.GroupMembershipCheckerFactory
 import com.graphqlcheckmate.services.AuthService
+import com.graphqlcheckmate.services.GroupService
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
@@ -13,10 +15,9 @@ import io.ktor.server.routing.*
 import io.ktor.server.plugins.cors.routing.CORS
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
-import viaduct.service.BasicViaductFactory
-import viaduct.service.SchemaRegistrationInfo
-import viaduct.service.SchemaScopeInfo
-import viaduct.service.TenantRegistrationInfo
+import viaduct.api.bootstrap.ViaductTenantAPIBootstrapper
+import viaduct.service.runtime.SchemaRegistryConfiguration
+import viaduct.service.runtime.StandardViaduct
 import viaduct.service.api.ExecutionInput as ViaductExecutionInput
 
 /**
@@ -51,23 +52,31 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
     // Use Koin-based dependency injector for Viaduct resolvers
     val koinInjector = KoinTenantCodeInjector()
 
-    // Build Viaduct service using BasicViaductFactory
-    // Register two schemas: one with default scope, one with admin scope
-    val viaduct = BasicViaductFactory.create(
-        schemaRegistrationInfo = SchemaRegistrationInfo(
-            scopes = listOf(
-                SchemaScopeInfo("default", setOf("default")),
-                SchemaScopeInfo("admin", setOf("default", "admin"))
-            )
-        ),
-        tenantRegistrationInfo = TenantRegistrationInfo(
-            tenantPackagePrefix = "com.graphqlcheckmate",
-            tenantCodeInjector = koinInjector
-        )
-    )
-
-    // Get AuthService from Koin
+    // Get services from Koin
     val authService = koin.get<AuthService>()
+    val groupService = koin.get<GroupService>()
+
+    // Build Viaduct service using StandardViaduct.Builder
+    // Register CheckerExecutorFactory for policy checks
+    val viaduct = StandardViaduct.Builder()
+        .withTenantAPIBootstrapperBuilder(
+            ViaductTenantAPIBootstrapper.Builder()
+                .tenantPackagePrefix("com.graphqlcheckmate")
+                .tenantCodeInjector(koinInjector)
+        )
+        .withSchemaRegistryConfiguration(
+            SchemaRegistryConfiguration.fromResources(
+                scopes = setOf(
+                    SchemaRegistryConfiguration.ScopeConfig("default", setOf("default")),
+                    SchemaRegistryConfiguration.ScopeConfig("admin", setOf("default", "admin"))
+                ),
+                fullSchemaIds = listOf("default")
+            )
+        )
+        .withCheckerExecutorFactoryCreator { schema ->
+            GroupMembershipCheckerFactory(schema, groupService)
+        }
+        .build()
 
     val objectMapper: ObjectMapper = jacksonObjectMapper()
 

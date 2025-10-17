@@ -22,6 +22,7 @@ data class ChecklistItemEntity(
     val title: String,
     val completed: Boolean,
     val user_id: String,
+    val group_id: String? = null,
     val created_at: String,
     val updated_at: String
 )
@@ -41,6 +42,7 @@ data class UserEntity(
 data class CreateChecklistItemInput(
     val title: String,
     val user_id: String,
+    val group_id: String? = null,
     val completed: Boolean = false
 )
 
@@ -156,12 +158,13 @@ class AuthenticatedSupabaseClient(
      * Create a new checklist item
      * RLS policies will automatically set user_id from the JWT
      */
-    suspend fun createChecklistItem(title: String, userId: String): ChecklistItemEntity {
+    suspend fun createChecklistItem(title: String, userId: String, groupId: String? = null): ChecklistItemEntity {
         return client.from("checklist_items")
             .insert(
                 CreateChecklistItemInput(
                     title = title,
                     user_id = userId,
+                    group_id = groupId,
                     completed = false
                 )
             ) {
@@ -244,5 +247,118 @@ class AuthenticatedSupabaseClient(
             setBody("""{"user_id":"$userId"}""")
         }
         return true
+    }
+
+    /**
+     * Get all checkbox groups the user is a member of
+     */
+    suspend fun getCheckboxGroups(): List<com.graphqlcheckmate.services.CheckboxGroupEntity> {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/checkbox_groups") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+        }
+        val jsonString = response.bodyAsText()
+        return json.decodeFromString(jsonString)
+    }
+
+    /**
+     * Get a specific checkbox group by ID
+     */
+    suspend fun getCheckboxGroupById(groupId: String): com.graphqlcheckmate.services.CheckboxGroupEntity? {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/checkbox_groups") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("id", "eq.$groupId")
+            parameter("select", "*")
+        }
+        val jsonString = response.bodyAsText()
+        val groups = json.decodeFromString<List<com.graphqlcheckmate.services.CheckboxGroupEntity>>(jsonString)
+        return groups.firstOrNull()
+    }
+
+    /**
+     * Create a new checkbox group
+     */
+    suspend fun createCheckboxGroup(
+        name: String,
+        description: String?,
+        ownerId: String
+    ): com.graphqlcheckmate.services.CheckboxGroupEntity {
+        val input = com.graphqlcheckmate.services.CreateGroupInput(
+            name = name,
+            description = description,
+            owner_id = ownerId
+        )
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/checkbox_groups") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(com.graphqlcheckmate.services.CreateGroupInput.serializer(), input))
+        }
+        val jsonString = response.bodyAsText()
+        val groups = json.decodeFromString<List<com.graphqlcheckmate.services.CheckboxGroupEntity>>(jsonString)
+        return groups.first()
+    }
+
+    /**
+     * Get all members of a group
+     */
+    suspend fun getGroupMembers(groupId: String): List<com.graphqlcheckmate.services.GroupMemberEntity> {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/group_members") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("group_id", "eq.$groupId")
+            parameter("select", "*")
+        }
+        val jsonString = response.bodyAsText()
+        return json.decodeFromString(jsonString)
+    }
+
+    /**
+     * Add a member to a group
+     */
+    suspend fun addGroupMember(groupId: String, userId: String): com.graphqlcheckmate.services.GroupMemberEntity {
+        val input = com.graphqlcheckmate.services.AddMemberInput(
+            group_id = groupId,
+            user_id = userId
+        )
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/group_members") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody(json.encodeToString(com.graphqlcheckmate.services.AddMemberInput.serializer(), input))
+        }
+        val jsonString = response.bodyAsText()
+        val members = json.decodeFromString<List<com.graphqlcheckmate.services.GroupMemberEntity>>(jsonString)
+        return members.first()
+    }
+
+    /**
+     * Remove a member from a group
+     */
+    suspend fun removeGroupMember(groupId: String, userId: String): Boolean {
+        httpClient.delete("$supabaseUrl/rest/v1/group_members") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("group_id", "eq.$groupId")
+            parameter("user_id", "eq.$userId")
+        }
+        return true
+    }
+
+    /**
+     * Get checklist items for a specific group
+     */
+    suspend fun getChecklistItemsByGroup(groupId: String): List<ChecklistItemEntity> {
+        return client.from("checklist_items")
+            .select {
+                filter {
+                    eq("group_id", groupId)
+                }
+            }
+            .decodeList<ChecklistItemEntity>()
     }
 }
