@@ -15,6 +15,9 @@ viaductModule {
 }
 
 dependencies {
+    // Viaduct service-wiring for CheckerExecutorFactory registration
+    implementation(libs.viaduct.service.wiring)
+
     // Ktor server
     implementation("io.ktor:ktor-server-core:2.3.7")
     implementation("io.ktor:ktor-server-netty:2.3.7")

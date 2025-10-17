@@ -1,0 +1,120 @@
+"""
+A checklist item that belongs to a checkbox group.
+Only members of the group can access the item.
+"""
+type ChecklistItem implements Node @scope(to: ["default"]) @requiresGroupMembership(groupIdField: "groupId") {
+  """
+  The unique identifier for the item.
+  """
+  id: ID!
+
+  """
+  The title of the checklist item.
+  """
+  title: String!
+
+  """
+  Whether the item is completed.
+  """
+  completed: Boolean!
+
+  """
+  The ID of the user who created this item.
+  """
+  userId: String!
+
+  """
+  The ID of the checkbox group this item belongs to.
+  If null, this is a legacy personal item.
+  """
+  groupId: String
+
+  """
+  When the item was created.
+  """
+  createdAt: String!
+
+  """
+  When the item was last updated.
+  """
+  updatedAt: String!
+}
+
+"""
+Input for creating a new checklist item.
+"""
+input CreateChecklistItemInput @scope(to: ["default"]) {
+  """
+  The title of the item.
+  """
+  title: String!
+
+  """
+  The group ID this item belongs to.
+  Required for group-based items.
+  """
+  groupId: ID!
+}
+
+"""
+Input for updating a checklist item.
+"""
+input UpdateChecklistItemInput @scope(to: ["default"]) {
+  """
+  The ID of the item to update.
+  """
+  id: ID!
+
+  """
+  The new completion status.
+  """
+  completed: Boolean
+
+  """
+  The new title.
+  """
+  title: String
+}
+
+"""
+Input for deleting a checklist item.
+"""
+input DeleteChecklistItemInput @scope(to: ["default"]) {
+  """
+  The ID of the item to delete.
+  """
+  id: ID!
+}
+
+extend type Query @scope(to: ["default"]) {
+  """
+  Get all checklist items from groups the user is a member of.
+  """
+  checklistItems: [ChecklistItem!]! @resolver
+
+  """
+  Get checklist items for a specific group.
+  Only accessible if the user is a member of the group.
+  """
+  checklistItemsByGroup(groupId: ID!): [ChecklistItem!]! @resolver @requiresGroupMembership
+}
+
+extend type Mutation @scope(to: ["default"]) {
+  """
+  Create a new checklist item in a group.
+  Only members of the group can create items.
+  """
+  createChecklistItem(input: CreateChecklistItemInput!): ChecklistItem! @resolver
+
+  """
+  Update a checklist item.
+  Only members of the item's group can update it.
+  """
+  updateChecklistItem(input: UpdateChecklistItemInput!): ChecklistItem! @resolver
+
+  """
+  Delete a checklist item.
+  Only members of the item's group can delete it.
+  """
+  deleteChecklistItem(input: DeleteChecklistItemInput!): Boolean! @resolver
+}

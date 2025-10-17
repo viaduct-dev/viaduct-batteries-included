@@ -3,6 +3,7 @@ package com.graphqlcheckmate.config
 import com.graphqlcheckmate.SupabaseService
 import com.graphqlcheckmate.resolvers.*
 import com.graphqlcheckmate.services.AuthService
+import com.graphqlcheckmate.services.GroupService
 import com.graphqlcheckmate.services.UserService
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
@@ -15,6 +16,7 @@ fun appModule(supabaseUrl: String, supabaseKey: String) = module {
     single { SupabaseService(supabaseUrl, supabaseKey) }
     singleOf(::AuthService)
     singleOf(::UserService)
+    singleOf(::GroupService)
 
     // Resolvers
     singleOf(::PingQueryResolver)
