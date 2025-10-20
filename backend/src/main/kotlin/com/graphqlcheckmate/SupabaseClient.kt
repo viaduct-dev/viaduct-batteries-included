@@ -51,7 +51,8 @@ data class CreateChecklistItemInput(
  */
 @Serializable
 data class UpdateChecklistItemInput(
-    val completed: Boolean
+    val completed: Boolean? = null,
+    val title: String? = null
 )
 
 /**
@@ -65,7 +66,7 @@ data class GraphQLRequestContext(
     val isAdmin: Boolean = false
 )
 
-class SupabaseService(
+open class SupabaseService(
     val supabaseUrl: String,
     val supabaseKey: String
 ) {
@@ -109,7 +110,7 @@ class SupabaseService(
      * Helper function to extract authenticated client from request context
      * This should be called by resolvers to get a client for database operations
      */
-    fun getAuthenticatedClient(requestContext: Any?): AuthenticatedSupabaseClient {
+    open fun getAuthenticatedClient(requestContext: Any?): AuthenticatedSupabaseClient {
         val context = requestContext as? GraphQLRequestContext
             ?: throw IllegalArgumentException("Authentication required: invalid or missing request context")
 
@@ -177,10 +178,14 @@ class AuthenticatedSupabaseClient(
      * Update a checklist item
      * RLS policies will ensure the user can only update their own items
      */
-    suspend fun updateChecklistItem(id: String, completed: Boolean): ChecklistItemEntity {
+    suspend fun updateChecklistItem(
+        id: String,
+        completed: Boolean? = null,
+        title: String? = null
+    ): ChecklistItemEntity {
         return client.from("checklist_items")
             .update(
-                UpdateChecklistItemInput(completed = completed)
+                UpdateChecklistItemInput(completed = completed, title = title)
             ) {
                 filter {
                     eq("id", id)

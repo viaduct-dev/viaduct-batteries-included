@@ -18,9 +18,31 @@ fun appModule(supabaseUrl: String, supabaseKey: String) = module {
     singleOf(::UserService)
     singleOf(::GroupService)
 
-    // Resolvers
+    // Resolvers - Admin
     singleOf(::PingQueryResolver)
     singleOf(::SetUserAdminResolver)
     singleOf(::UsersQueryResolver)
     singleOf(::DeleteUserResolver)
+
+    // Resolvers - CheckboxGroup Queries
+    singleOf(::CheckboxGroupsQueryResolver)
+    singleOf(::CheckboxGroupQueryResolver)
+
+    // Resolvers - CheckboxGroup Mutations
+    singleOf(::CreateCheckboxGroupResolver)
+    singleOf(::AddGroupMemberResolver)
+    singleOf(::RemoveGroupMemberResolver)
+
+    // Resolvers - CheckboxGroup Fields
+    singleOf(::CheckboxGroupMembersResolver)
+    singleOf(::CheckboxGroupChecklistItemsResolver)
+
+    // Resolvers - ChecklistItem Queries
+    singleOf(::ChecklistItemsQueryResolver)
+    singleOf(::ChecklistItemsByGroupQueryResolver)
+
+    // Resolvers - ChecklistItem Mutations
+    singleOf(::CreateChecklistItemResolver)
+    singleOf(::UpdateChecklistItemResolver)
+    singleOf(::DeleteChecklistItemResolver)
 }

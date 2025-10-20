@@ -2,11 +2,13 @@ package com.graphqlcheckmate.policy
 
 import com.graphqlcheckmate.GraphQLRequestContext
 import com.graphqlcheckmate.services.GroupService
+import viaduct.api.globalid.GlobalID
 import viaduct.engine.api.CheckerExecutor
 import viaduct.engine.api.CheckerResult
 import viaduct.engine.api.EngineExecutionContext
 import viaduct.engine.api.EngineObjectData
 import viaduct.engine.api.RequiredSelectionSet
+import java.util.Base64
 
 /**
  * Policy executor that checks if a user is a member of a checkbox group.
@@ -46,11 +48,78 @@ class GroupMembershipPolicyExecutor(
         // If there's no object data, we're checking a field-level policy
         // In this case, check if the groupId is provided as an argument
         if (objectData == null) {
-            val groupIdArg = arguments["groupId"] as? String
+            val groupIdArg = arguments[groupIdFieldName]
             if (groupIdArg != null) {
-                // Check membership using the argument
-                return checkGroupMembership(userId, groupIdArg)
+                // The argument can be either a GlobalID object or a serialized String (base64-encoded)
+                val internalGroupId = when (groupIdArg) {
+                    is GlobalID<*> -> groupIdArg.internalID
+                    is String -> {
+                        // Decode base64-encoded GlobalID string
+                        try {
+                            val decoded = String(Base64.getDecoder().decode(groupIdArg))
+                            decoded.substringAfter(":")
+                        } catch (e: Exception) {
+                            // If decoding fails, assume it's already a UUID
+                            groupIdArg
+                        }
+                    }
+                    else -> throw IllegalArgumentException(
+                        "Expected GlobalID or String for argument '$groupIdFieldName' but got ${groupIdArg::class.java.name}"
+                    )
+                }
+                return checkGroupMembership(userId, internalGroupId, context)
             }
+
+            // Check if there's an input object with an 'id' field (for mutations like updateChecklistItem)
+            // We need to fetch the item to get its groupId
+            val inputArg = arguments["input"]
+            if (inputArg != null) {
+                // Try to extract the internal ID from the input object's GlobalID
+                val internalItemId = try {
+                    val idField = inputArg::class.java.getMethod("getId")
+                    val idValue = idField.invoke(inputArg)
+
+                    // Ensure it's a GlobalID type
+                    if (idValue !is GlobalID<*>) {
+                        throw IllegalArgumentException(
+                            "Expected GlobalID for input.id but got ${idValue?.let { it::class.java.name } ?: "null"}"
+                        )
+                    }
+                    idValue.internalID
+                } catch (e: Exception) {
+                    null
+                }
+
+                if (internalItemId != null) {
+                    // Fetch the item to get its groupId
+                    val requestContext = context.requestContext as? GraphQLRequestContext
+                        ?: return GroupMembershipErrorResult(
+                            RuntimeException("Authentication required: request context not found")
+                        )
+                    val client = groupService.supabaseService.getAuthenticatedClient(requestContext)
+
+                    val item = try {
+                        client.getChecklistItemById(internalItemId)
+                    } catch (e: Exception) {
+                        return GroupMembershipErrorResult(
+                            RuntimeException("Failed to fetch item for authorization check: ${e.message}", e)
+                        )
+                    }
+
+                    if (item == null) {
+                        return GroupMembershipErrorResult(
+                            RuntimeException("Item not found")
+                        )
+                    }
+
+                    // Check if the item belongs to a group and verify membership
+                    val itemGroupId = item.group_id
+                    if (itemGroupId != null) {
+                        return checkGroupMembership(userId, itemGroupId, context)
+                    }
+                }
+            }
+
             // No group ID available - allow access (this might be a query that returns all groups)
             return CheckerResult.Success
         }
@@ -69,12 +138,18 @@ class GroupMembershipPolicyExecutor(
         }
 
         // Check if the user is a member of the group
-        return checkGroupMembership(userId, groupId)
+        return checkGroupMembership(userId, groupId, context)
     }
 
-    private suspend fun checkGroupMembership(userId: String, groupId: String): CheckerResult {
+    private suspend fun checkGroupMembership(userId: String, groupId: String, context: EngineExecutionContext): CheckerResult {
         val isMember = try {
-            groupService.isUserMemberOfGroup(userId, groupId)
+            // Get authenticated client from context to respect RLS policies
+            val requestContext = context.requestContext as? GraphQLRequestContext
+                ?: return GroupMembershipErrorResult(
+                    RuntimeException("Authentication required: request context not found")
+                )
+            val client = groupService.supabaseService.getAuthenticatedClient(requestContext)
+            groupService.isUserMemberOfGroup(userId, groupId, client)
         } catch (e: Exception) {
             return GroupMembershipErrorResult(
                 RuntimeException("Failed to check group membership: ${e.message}", e)

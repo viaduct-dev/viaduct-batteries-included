@@ -110,11 +110,11 @@ extend type Mutation @scope(to: ["default"]) {
   Update a checklist item.
   Only members of the item's group can update it.
   """
-  updateChecklistItem(input: UpdateChecklistItemInput!): ChecklistItem! @resolver
+  updateChecklistItem(input: UpdateChecklistItemInput!): ChecklistItem! @resolver @requiresGroupMembership
 
   """
   Delete a checklist item.
   Only members of the item's group can delete it.
   """
-  deleteChecklistItem(input: DeleteChecklistItemInput!): Boolean! @resolver
+  deleteChecklistItem(input: DeleteChecklistItemInput!): Boolean! @resolver @requiresGroupMembership
 }

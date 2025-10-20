@@ -45,7 +45,7 @@ data class AddMemberInput(
  * Handles group creation, membership checks, and group-related queries.
  */
 open class GroupService(
-    private val supabaseService: SupabaseService
+    internal val supabaseService: SupabaseService
 ) {
     private val httpClient = HttpClient()
     private val json = Json { ignoreUnknownKeys = true }
@@ -53,25 +53,11 @@ open class GroupService(
     /**
      * Check if a user is a member of a specific group.
      * This is called by the policy executor to enforce per-row access control.
+     * Uses an authenticated client to respect RLS policies.
      */
-    open suspend fun isUserMemberOfGroup(userId: String, groupId: String): Boolean {
-        // Create an admin client to check membership
-        // Note: In production, you might want to cache this information
-        val supabaseUrl = supabaseService.supabaseUrl
-        val supabaseKey = supabaseService.supabaseKey
-
-        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/group_members") {
-            header("Authorization", "Bearer $supabaseKey")
-            header("apikey", supabaseKey)
-            parameter("group_id", "eq.$groupId")
-            parameter("user_id", "eq.$userId")
-            parameter("select", "id")
-        }
-
-        val jsonString = response.bodyAsText()
-        val members = json.decodeFromString<List<Map<String, String>>>(jsonString)
-
-        return members.isNotEmpty()
+    open suspend fun isUserMemberOfGroup(userId: String, groupId: String, client: AuthenticatedSupabaseClient): Boolean {
+        val members = client.getGroupMembers(groupId)
+        return members.any { it.user_id == userId }
     }
 
     /**

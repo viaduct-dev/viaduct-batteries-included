@@ -8,25 +8,40 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
+import viaduct.api.globalid.GlobalID
 import viaduct.engine.api.CheckerResult
 import viaduct.engine.api.EngineExecutionContext
 import viaduct.engine.api.EngineObjectData
 
 /**
+ * Fake SupabaseService implementation for testing.
+ * Works around Java 21 / Byte Buddy compatibility issues with MockK.
+ * Even though SupabaseService is 'open', MockK's inline instrumentation
+ * fails with Java 21, so we use a fake implementation instead.
+ */
+class FakeSupabaseService : SupabaseService("fake-url", "fake-key") {
+    override fun getAuthenticatedClient(requestContext: Any?): AuthenticatedSupabaseClient {
+        // Return a relaxed mock client for testing
+        return mockk<AuthenticatedSupabaseClient>(relaxed = true)
+    }
+}
+
+/**
  * Fake GroupService implementation for testing.
  * Avoids Java 21 / Byte Buddy compatibility issues with MockK.
  */
-class FakeGroupService : GroupService(mockk<SupabaseService>(relaxed = true)) {
+class FakeGroupService(supabaseService: SupabaseService) : GroupService(supabaseService) {
     private val memberships = mutableMapOf<Pair<String, String>, Boolean>()
 
     fun setMembership(userId: String, groupId: String, isMember: Boolean) {
         memberships[Pair(userId, groupId)] = isMember
     }
 
-    override suspend fun isUserMemberOfGroup(userId: String, groupId: String): Boolean {
+    override suspend fun isUserMemberOfGroup(userId: String, groupId: String, client: AuthenticatedSupabaseClient): Boolean {
         return memberships[Pair(userId, groupId)] ?: false
     }
 }
@@ -51,8 +66,9 @@ class GroupMembershipPolicyCheckTest : FunSpec({
     lateinit var mockContext: EngineExecutionContext
 
     beforeEach {
-        // Use fake GroupService to simulate group memberships
-        groupService = FakeGroupService()
+        // Use FakeSupabaseService instead of MockK due to Byte Buddy / Java 21 issues
+        val fakeSupabaseService = FakeSupabaseService()
+        groupService = FakeGroupService(fakeSupabaseService)
 
         // User is a member of testGroupId but not anotherGroupId
         groupService.setMembership(testUserId, testGroupId, true)
@@ -76,7 +92,7 @@ class GroupMembershipPolicyCheckTest : FunSpec({
     test("should grant access when user is a member of the group") {
         // Arrange: Create object data with group ID that user is a member of
         val objectData = mockk<EngineObjectData>()
-        every { runBlocking { objectData.fetch("groupId") } } returns testGroupId
+        coEvery { objectData.fetch("groupId") } coAnswers { testGroupId }
 
         val objectDataMap = mapOf("" to objectData)
         val arguments = emptyMap<String, Any?>()
@@ -88,6 +104,15 @@ class GroupMembershipPolicyCheckTest : FunSpec({
             context = mockContext
         )
 
+        // Debug: Print error if not success
+        if (result !is CheckerResult.Success) {
+            println("TEST FAILED: Expected Success but got ${result::class.simpleName}")
+            if (result is GroupMembershipErrorResult) {
+                println("Error message: ${result.error.message}")
+                result.error.printStackTrace()
+            }
+        }
+
         // Assert: Access should be granted
         result shouldBe CheckerResult.Success
     }
@@ -95,7 +120,7 @@ class GroupMembershipPolicyCheckTest : FunSpec({
     test("should deny access when user is not a member of the group") {
         // Arrange: Create object data with group ID that user is NOT a member of
         val objectData = mockk<EngineObjectData>()
-        every { runBlocking { objectData.fetch("groupId") } } returns anotherGroupId
+        coEvery { objectData.fetch("groupId") } coAnswers { anotherGroupId }
 
         val objectDataMap = mapOf("" to objectData)
         val arguments = emptyMap<String, Any?>()
@@ -116,7 +141,7 @@ class GroupMembershipPolicyCheckTest : FunSpec({
     test("should grant access when group ID is null (backward compatibility)") {
         // Arrange: Create object data with null group ID (legacy personal items)
         val objectData = mockk<EngineObjectData>()
-        every { runBlocking { objectData.fetch("groupId") } } returns null
+        coEvery { objectData.fetch("groupId") } coAnswers { null }
 
         val objectDataMap = mapOf("" to objectData)
         val arguments = emptyMap<String, Any?>()
@@ -133,9 +158,11 @@ class GroupMembershipPolicyCheckTest : FunSpec({
     }
 
     test("should check membership from arguments when object data is null") {
-        // Arrange: No object data, but group ID provided as argument
+        // Arrange: No object data, but group ID provided as GlobalID argument
         val objectDataMap = emptyMap<String, EngineObjectData>()
-        val arguments = mapOf("groupId" to testGroupId)
+        val mockGlobalId = mockk<GlobalID<*>>()
+        every { mockGlobalId.internalID } returns testGroupId
+        val arguments = mapOf("groupId" to mockGlobalId)
 
         // Act: Execute policy check
         val result = policyExecutor.execute(
@@ -149,9 +176,11 @@ class GroupMembershipPolicyCheckTest : FunSpec({
     }
 
     test("should deny access from arguments when user is not a member") {
-        // Arrange: No object data, but group ID provided as argument for non-member group
+        // Arrange: No object data, but group ID provided as GlobalID argument for non-member group
         val objectDataMap = emptyMap<String, EngineObjectData>()
-        val arguments = mapOf("groupId" to anotherGroupId)
+        val mockGlobalId = mockk<GlobalID<*>>()
+        every { mockGlobalId.internalID } returns anotherGroupId
+        val arguments = mapOf("groupId" to mockGlobalId)
 
         // Act: Execute policy check
         val result = policyExecutor.execute(
