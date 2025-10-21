@@ -22,6 +22,7 @@ fun appModule(supabaseUrl: String, supabaseKey: String) = module {
     singleOf(::PingQueryResolver)
     singleOf(::SetUserAdminResolver)
     singleOf(::UsersQueryResolver)
+    singleOf(::SearchUsersQueryResolver)
     singleOf(::DeleteUserResolver)
 
     // Resolvers - CheckboxGroup Queries

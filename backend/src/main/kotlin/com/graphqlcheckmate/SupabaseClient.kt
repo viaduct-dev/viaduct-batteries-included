@@ -267,6 +267,22 @@ class AuthenticatedSupabaseClient(
     }
 
     /**
+     * Search for users by email
+     * Available to all authenticated users
+     */
+    suspend fun searchUsers(query: String): List<UserEntity> {
+        // Call the PostgreSQL RPC function via HTTP
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/rpc/search_users") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            contentType(ContentType.Application.Json)
+            setBody("""{"search_query":"$query"}""")
+        }
+        val jsonString = response.bodyAsText()
+        return json.decodeFromString(jsonString)
+    }
+
+    /**
      * Delete a user from the system
      * Only admins can call this
      */

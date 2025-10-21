@@ -4,9 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { UserList } from "@/components/UserList";
 import { GroupManager } from "@/components/GroupManager";
-import { ChecklistManager } from "@/components/ChecklistManager";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { LogOut, Shield } from "lucide-react";
 
@@ -86,8 +84,6 @@ const Index = () => {
         {isAdmin && <UserList />}
 
         <GroupManager />
-
-        <ChecklistManager />
 
         <p className="text-center text-sm text-muted-foreground">
           Powered by GraphQL • {session.user.email}

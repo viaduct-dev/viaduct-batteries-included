@@ -31,15 +31,29 @@ run = "supabase start"
 description = "Start all dependencies (Podman + Supabase)"
 depends = ["supabase-start"]
 
+# Build tasks
+[tasks.build-backend]
+description = "Build Viaduct GraphQL backend"
+dir = "backend"
+run = "./gradlew clean build"
+
+[tasks.build-frontend]
+description = "Build React frontend"
+run = "npm run build"
+
+[tasks.build]
+description = "Build both backend and frontend"
+depends = ["build-backend", "build-frontend"]
+
 # Application tasks
 [tasks.backend]
-description = "Start Viaduct GraphQL backend"
+description = "Build and start Viaduct GraphQL backend"
 depends = ["deps-start"]
 dir = "backend"
-run = "./gradlew run"
+run = "./gradlew clean run"
 
 [tasks.frontend]
-description = "Start React frontend"
+description = "Start React frontend (with Vite hot-reload)"
 run = "npm run dev"
 
 [tasks.dev]
@@ -60,6 +74,16 @@ wait
 """
 
 # Cleanup tasks
+[tasks.kill-dev]
+description = "Kill running backend and frontend processes"
+run = """
+echo "Killing backend processes..."
+pkill -f "gradlew.*run" || echo "No backend process found"
+echo "Killing frontend processes..."
+pkill -f "vite" || echo "No frontend process found"
+echo "Development processes stopped"
+"""
+
 [tasks.stop]
 description = "Stop all services"
 run = """
@@ -67,6 +91,15 @@ echo "Stopping Supabase..."
 supabase stop
 echo "Stopping Podman..."
 podman machine stop
+"""
+
+[tasks.restart]
+description = "Restart development environment (kill running processes and start fresh)"
+run = """
+echo "Restarting development environment..."
+mise run kill-dev
+echo "Starting fresh development environment..."
+mise run dev
 """
 
 [tasks.status]

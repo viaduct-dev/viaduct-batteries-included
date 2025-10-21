@@ -3,6 +3,11 @@ extend type Query @scope(to: ["default"]) {
   Returns the current server time. Used to verify the API is accessible.
   """
   ping: String! @resolver
+
+  """
+  Search for users by email. Returns up to 10 matching users.
+  """
+  searchUsers(query: String!): [User!]! @resolver
 }
 
 extend type Query @scope(to: ["admin"]) {

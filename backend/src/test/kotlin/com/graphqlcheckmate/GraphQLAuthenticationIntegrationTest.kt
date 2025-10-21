@@ -100,7 +100,7 @@ class GraphQLAuthenticationIntegrationTest : FunSpec({
                 contentType(ContentType.Application.Json)
                 setBody("""
                     {
-                        "query": "{ __typename }"
+                        "query": "{ checklistItems { id title } }"
                     }
                 """.trimIndent())
             }
@@ -118,7 +118,7 @@ class GraphQLAuthenticationIntegrationTest : FunSpec({
                 header(HttpHeaders.Authorization, "Bearer invalid-token-12345")
                 setBody("""
                     {
-                        "query": "{ __typename }"
+                        "query": "{ checklistItems { id title } }"
                     }
                 """.trimIndent())
             }
@@ -138,7 +138,7 @@ class GraphQLAuthenticationIntegrationTest : FunSpec({
                 header(HttpHeaders.Authorization, "Bearer $accessToken")
                 setBody("""
                     {
-                        "query": "{ __typename }"
+                        "query": "{ checklistItems { id title completed } }"
                     }
                 """.trimIndent())
             }
@@ -147,8 +147,9 @@ class GraphQLAuthenticationIntegrationTest : FunSpec({
             val body = response.bodyAsText()
             println("GraphQL Response: $body")
 
-            // Should have a data field
+            // Should have a data field (might be empty array, but should succeed)
             body shouldContainJsonKey "data"
+            body shouldContainJsonKey "data.checklistItems"
         }
     }
 
@@ -176,26 +177,56 @@ class GraphQLAuthenticationIntegrationTest : FunSpec({
         }
     }
 
-    test("GraphQL __typename query with valid token should succeed") {
+    test("Create checklist item with valid token should succeed") {
         accessToken shouldNotBe null
 
         testWithApp {
-            val response = client.post("/graphql") {
+            // First, create a checkbox group
+            val groupResponse = client.post("/graphql") {
                 contentType(ContentType.Application.Json)
                 header(HttpHeaders.Authorization, "Bearer $accessToken")
                 setBody("""
                     {
-                        "query": "query { __typename }"
+                        "query": "mutation CreateGroup(${'$'}name: String!) { createCheckboxGroup(input: { name: ${'$'}name }) { id name } }",
+                        "variables": {
+                            "name": "Test Group from Integration Test"
+                        }
                     }
                 """.trimIndent())
             }
 
-            response.status shouldBe HttpStatusCode.OK
-            val body = response.bodyAsText()
-            println("__typename query response: $body")
+            val groupBody = groupResponse.bodyAsText()
+            println("Create group response: $groupBody")
+            groupResponse.status shouldBe HttpStatusCode.OK
 
-            body shouldContainJsonKey "data"
-            body shouldContain "Query"
+            // Extract group ID from response
+            val groupId = objectMapper.readTree(groupBody)
+                .get("data")?.get("createCheckboxGroup")?.get("id")?.asText()
+                ?: throw Exception("Failed to extract group ID from response")
+
+            // Now create a checklist item in that group
+            val itemResponse = client.post("/graphql") {
+                contentType(ContentType.Application.Json)
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+                setBody("""
+                    {
+                        "query": "mutation CreateItem(${'$'}title: String!, ${'$'}groupId: ID!) { createChecklistItem(input: { title: ${'$'}title, groupId: ${'$'}groupId }) { id title completed groupId } }",
+                        "variables": {
+                            "title": "Test Item from Integration Test",
+                            "groupId": "$groupId"
+                        }
+                    }
+                """.trimIndent())
+            }
+
+            val itemBody = itemResponse.bodyAsText()
+            println("Create item response: $itemBody")
+            println("Response status: ${itemResponse.status}")
+
+            itemResponse.status shouldBe HttpStatusCode.OK
+            itemBody shouldContainJsonKey "data.createChecklistItem"
+            itemBody shouldContainJsonKey "data.createChecklistItem.id"
+            itemBody shouldContain "Test Item from Integration Test"
         }
     }
 

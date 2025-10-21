@@ -7,13 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckSquare, Plus } from "lucide-react";
+import { CheckSquare, Plus, Trash2 } from "lucide-react";
 import {
   executeGraphQL,
   GET_CHECKBOX_GROUPS,
   GET_CHECKLIST_ITEMS,
   CREATE_CHECKLIST_ITEM,
   UPDATE_CHECKLIST_ITEM,
+  DELETE_CHECKLIST_ITEM,
 } from "@/lib/graphql";
 
 interface CheckboxGroup {
@@ -34,9 +35,8 @@ export function ChecklistManager() {
   const [groups, setGroups] = useState<CheckboxGroup[]>([]);
   const [items, setItems] = useState<ChecklistItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState<string | null>(null);
   const [newItemTitle, setNewItemTitle] = useState("");
-  const [selectedGroupId, setSelectedGroupId] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -63,12 +63,12 @@ export function ChecklistManager() {
     }
   };
 
-  const handleCreateItem = async (e: React.FormEvent) => {
+  const handleCreateItem = async (e: React.FormEvent, groupId: string) => {
     e.preventDefault();
-    if (!selectedGroupId) {
+    if (!groupId) {
       toast({
         title: "Error",
-        description: "Please select a group",
+        description: "Group ID is missing",
         variant: "destructive",
       });
       return;
@@ -77,19 +77,37 @@ export function ChecklistManager() {
     try {
       await executeGraphQL(CREATE_CHECKLIST_ITEM, {
         title: newItemTitle,
-        groupId: selectedGroupId,
+        groupId: groupId,
       });
       toast({
         title: "Item created",
         description: `Successfully created "${newItemTitle}"`,
       });
       setNewItemTitle("");
-      setSelectedGroupId("");
-      setCreateDialogOpen(false);
+      setCreateDialogOpen(null);
       loadData();
     } catch (error: any) {
       toast({
         title: "Error creating item",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteItem = async (itemId: string, itemTitle: string) => {
+    try {
+      await executeGraphQL(DELETE_CHECKLIST_ITEM, {
+        id: itemId,
+      });
+      setItems(items.filter(item => item.id !== itemId));
+      toast({
+        title: "Item deleted",
+        description: `Successfully deleted "${itemTitle}"`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error deleting item",
         description: error.message,
         variant: "destructive",
       });
@@ -144,58 +162,15 @@ export function ChecklistManager() {
           <CheckSquare className="h-6 w-6" />
           Checklist Items
         </h2>
-        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button disabled={groups.length === 0}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Item
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New Checklist Item</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleCreateItem} className="space-y-4">
-              <div>
-                <Label htmlFor="itemTitle">Item Title</Label>
-                <Input
-                  id="itemTitle"
-                  value={newItemTitle}
-                  onChange={(e) => setNewItemTitle(e.target.value)}
-                  placeholder="Enter item title"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="itemGroup">Group</Label>
-                <Select value={selectedGroupId} onValueChange={setSelectedGroupId} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a group" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {groups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button type="submit" className="w-full">Create Item</Button>
-            </form>
-          </DialogContent>
-        </Dialog>
       </div>
 
       {loading && <p>Loading items...</p>}
 
-      {!loading && items.length === 0 && (
+      {!loading && groups.length === 0 && (
         <Card>
           <CardContent className="pt-6">
             <p className="text-muted-foreground text-center">
-              {groups.length === 0
-                ? "Create a group first to add checklist items"
-                : "No checklist items yet. Add your first item to get started!"}
+              Create a group first to add checklist items
             </p>
           </CardContent>
         </Card>
@@ -205,7 +180,6 @@ export function ChecklistManager() {
         {groups.map((group) => {
           const groupUuid = decodeGlobalId(group.id);
           const groupItems = groupedItems[groupUuid] || [];
-          if (groupItems.length === 0) return null;
 
           return (
             <Card key={group.id}>
@@ -229,9 +203,43 @@ export function ChecklistManager() {
                       >
                         {item.title}
                       </label>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteItem(item.id, item.title)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
                   ))}
                 </div>
+                <Dialog open={createDialogOpen === group.id} onOpenChange={(open) => setCreateDialogOpen(open ? group.id : null)}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-full mt-4">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Item
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Create New Checklist Item in {group.name}</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={(e) => handleCreateItem(e, group.id)} className="space-y-4">
+                      <div>
+                        <Label htmlFor="itemTitle">Item Title</Label>
+                        <Input
+                          id="itemTitle"
+                          value={newItemTitle}
+                          onChange={(e) => setNewItemTitle(e.target.value)}
+                          placeholder="Enter item title"
+                          required
+                        />
+                      </div>
+                      <Button type="submit" className="w-full">Create Item</Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
               </CardContent>
             </Card>
           );

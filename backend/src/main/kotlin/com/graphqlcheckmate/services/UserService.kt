@@ -19,6 +19,15 @@ class UserService(
     }
 
     /**
+     * Search for users by email
+     * Available to all authenticated users
+     */
+    suspend fun searchUsers(requestContext: Any?, query: String): List<UserEntity> {
+        val client = supabaseService.getAuthenticatedClient(requestContext)
+        return client.searchUsers(query)
+    }
+
+    /**
      * Set a user's admin status
      * Only admins can call this
      */

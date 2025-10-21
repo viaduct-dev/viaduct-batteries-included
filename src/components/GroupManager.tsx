@@ -6,13 +6,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Users, Plus, UserPlus } from "lucide-react";
+import { Users, Plus, UserPlus, Trash2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   executeGraphQL,
   GET_CHECKBOX_GROUPS,
   CREATE_CHECKBOX_GROUP,
   ADD_GROUP_MEMBER,
   GET_CHECKBOX_GROUP,
+  SEARCH_USERS,
+  GET_CHECKLIST_ITEMS,
+  CREATE_CHECKLIST_ITEM,
+  UPDATE_CHECKLIST_ITEM,
+  DELETE_CHECKLIST_ITEM,
 } from "@/lib/graphql";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -41,15 +47,27 @@ interface ChecklistItem {
   createdAt: string;
 }
 
+interface User {
+  id: string;
+  email: string;
+  isAdmin: boolean;
+  createdAt: string;
+}
+
 export function GroupManager() {
   const [groups, setGroups] = useState<CheckboxGroup[]>([]);
+  const [items, setItems] = useState<ChecklistItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
+  const [addItemDialogOpen, setAddItemDialogOpen] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupDescription, setNewGroupDescription] = useState("");
-  const [memberUserId, setMemberUserId] = useState("");
+  const [newItemTitle, setNewItemTitle] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const { toast } = useToast();
 
@@ -62,12 +80,45 @@ export function GroupManager() {
     loadGroups();
   }, []);
 
+  useEffect(() => {
+    const searchUsers = async () => {
+      if (searchQuery.trim().length < 2) {
+        setSearchResults([]);
+        return;
+      }
+
+      try {
+        const data = await executeGraphQL<{ searchUsers: User[] }>(SEARCH_USERS, {
+          query: searchQuery,
+        });
+        console.log("Search results:", data);
+        setSearchResults(data.searchUsers || []);
+      } catch (error: any) {
+        console.error("Error searching users:", error);
+        toast({
+          title: "Search error",
+          description: error.message || "Failed to search users",
+          variant: "destructive",
+        });
+      }
+    };
+
+    const timer = setTimeout(() => {
+      searchUsers();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, toast]);
+
   const loadGroups = async () => {
     try {
       setLoading(true);
-      const data = await executeGraphQL<{ checkboxGroups: CheckboxGroup[] }>(GET_CHECKBOX_GROUPS);
+      const [groupsData, itemsData] = await Promise.all([
+        executeGraphQL<{ checkboxGroups: CheckboxGroup[] }>(GET_CHECKBOX_GROUPS),
+        executeGraphQL<{ checklistItems: ChecklistItem[] }>(GET_CHECKLIST_ITEMS),
+      ]);
       const normalized =
-        data.checkboxGroups
+        groupsData.checkboxGroups
           ?.map(group => ({
             ...group,
             description: group.description ?? null,
@@ -78,9 +129,10 @@ export function GroupManager() {
           }))
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) ?? [];
       setGroups(normalized);
+      setItems(itemsData.checklistItems || []);
     } catch (error: any) {
       toast({
-        title: "Error loading groups",
+        title: "Error loading data",
         description: error.message,
         variant: "destructive",
       });
@@ -145,16 +197,34 @@ export function GroupManager() {
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedUser) {
+      toast({
+        title: "Error",
+        description: "Please select a user",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
+      // Extract UUID from GlobalID if needed
+      let userId = selectedUser.id;
+      if (userId.includes(':')) {
+        const decoded = atob(userId);
+        userId = decoded.split(':')[1];
+      }
+
       await executeGraphQL(ADD_GROUP_MEMBER, {
         groupId: selectedGroupId,
-        userId: memberUserId,
+        userId: userId,
       });
       toast({
         title: "Member added",
-        description: "Successfully added member to group",
+        description: `Successfully added ${selectedUser.email} to group`,
       });
-      setMemberUserId("");
+      setSearchQuery("");
+      setSearchResults([]);
+      setSelectedUser(null);
       setAddMemberDialogOpen(false);
       void loadGroups();
     } catch (error: any) {
@@ -168,7 +238,94 @@ export function GroupManager() {
 
   const openAddMemberDialog = (groupId: string) => {
     setSelectedGroupId(groupId);
+    setSearchQuery("");
+    setSearchResults([]);
+    setSelectedUser(null);
     setAddMemberDialogOpen(true);
+  };
+
+  const handleCreateItem = async (e: React.FormEvent, groupId: string) => {
+    e.preventDefault();
+    if (!groupId) {
+      toast({
+        title: "Error",
+        description: "Group ID is missing",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await executeGraphQL(CREATE_CHECKLIST_ITEM, {
+        title: newItemTitle,
+        groupId: groupId,
+      });
+      toast({
+        title: "Item created",
+        description: `Successfully created "${newItemTitle}"`,
+      });
+      setNewItemTitle("");
+      setAddItemDialogOpen(null);
+      loadGroups();
+    } catch (error: any) {
+      toast({
+        title: "Error creating item",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleToggleItem = async (itemId: string, currentCompleted: boolean) => {
+    try {
+      await executeGraphQL(UPDATE_CHECKLIST_ITEM, {
+        id: itemId,
+        completed: !currentCompleted,
+      });
+      setItems(items.map(item =>
+        item.id === itemId ? { ...item, completed: !currentCompleted } : item
+      ));
+      toast({
+        title: "Item updated",
+        description: "Checklist item status updated",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error updating item",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteItem = async (itemId: string, itemTitle: string) => {
+    try {
+      await executeGraphQL(DELETE_CHECKLIST_ITEM, {
+        id: itemId,
+      });
+      setItems(items.filter(item => item.id !== itemId));
+      toast({
+        title: "Item deleted",
+        description: `Successfully deleted "${itemTitle}"`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error deleting item",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Helper function to decode GlobalID and extract UUID
+  const decodeGlobalId = (globalId: string): string => {
+    try {
+      const decoded = atob(globalId);
+      const parts = decoded.split(':');
+      return parts[1] || globalId;
+    } catch {
+      return globalId;
+    }
   };
 
   return (
@@ -222,16 +379,49 @@ export function GroupManager() {
           </DialogHeader>
           <form onSubmit={handleAddMember} className="space-y-4">
             <div>
-              <Label htmlFor="memberUserId">User ID</Label>
+              <Label htmlFor="userSearch">Search User by Email</Label>
               <Input
-                id="memberUserId"
-                value={memberUserId}
-                onChange={(e) => setMemberUserId(e.target.value)}
-                placeholder="Enter user ID"
-                required
+                id="userSearch"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Type to search by email..."
+                autoComplete="off"
               />
+              {searchQuery.trim().length >= 2 && searchResults.length === 0 && (
+                <p className="text-sm text-muted-foreground mt-2">No users found</p>
+              )}
+              {searchResults.length > 0 && (
+                <div className="mt-2 max-h-48 overflow-y-auto border rounded-md">
+                  {searchResults.map((user) => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedUser(user);
+                        setSearchQuery(user.email);
+                        setSearchResults([]);
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-accent transition-colors"
+                    >
+                      <p className="text-sm font-medium">{user.email}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {user.isAdmin ? "Admin" : "User"}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            <Button type="submit" className="w-full">Add Member</Button>
+            {selectedUser && (
+              <div className="p-3 bg-muted rounded-md">
+                <p className="text-sm">
+                  <span className="font-medium">Selected:</span> {selectedUser.email}
+                </p>
+              </div>
+            )}
+            <Button type="submit" className="w-full" disabled={!selectedUser}>
+              Add Member
+            </Button>
           </form>
         </DialogContent>
       </Dialog>
@@ -249,33 +439,95 @@ export function GroupManager() {
       )}
 
       <div className="grid gap-4">
-        {groups.map((group) => (
-          <Card key={group.id}>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle>{group.name}</CardTitle>
-                  {group.description && (
-                    <CardDescription className="mt-2">{group.description}</CardDescription>
+        {groups.map((group) => {
+          const groupUuid = decodeGlobalId(group.id);
+          const groupItems = items.filter(item => item.groupId === groupUuid);
+
+          return (
+            <Card key={group.id}>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>{group.name}</CardTitle>
+                    {group.description && (
+                      <CardDescription className="mt-2">{group.description}</CardDescription>
+                    )}
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {group.ownerId === currentUserId ? "Owner" : "Member"} • {group.members.length} member{group.members.length !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  {group.ownerId === currentUserId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openAddMemberDialog(group.id)}
+                    >
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Add Member
+                    </Button>
                   )}
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {group.ownerId === currentUserId ? "Owner" : "Member"} • {group.members.length} member{group.members.length !== 1 ? "s" : ""}
-                  </p>
                 </div>
-                {group.ownerId === currentUserId && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openAddMemberDialog(group.id)}
-                  >
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Add Member
-                  </Button>
+              </CardHeader>
+              <CardContent>
+                {groupItems.length > 0 && (
+                  <div className="space-y-2 mb-4">
+                    {groupItems.map((item) => (
+                      <div key={item.id} className="flex items-center space-x-2 p-2 hover:bg-accent rounded">
+                        <Checkbox
+                          id={item.id}
+                          checked={item.completed}
+                          onCheckedChange={() => handleToggleItem(item.id, item.completed)}
+                        />
+                        <label
+                          htmlFor={item.id}
+                          className={`flex-1 text-sm cursor-pointer ${
+                            item.completed ? "line-through text-muted-foreground" : ""
+                          }`}
+                        >
+                          {item.title}
+                        </label>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteItem(item.id, item.title)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </div>
-            </CardHeader>
-          </Card>
-        ))}
+                <Dialog open={addItemDialogOpen === group.id} onOpenChange={(open) => setAddItemDialogOpen(open ? group.id : null)}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-full">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Item
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Create New Checklist Item in {group.name}</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={(e) => handleCreateItem(e, group.id)} className="space-y-4">
+                      <div>
+                        <Label htmlFor="itemTitle">Item Title</Label>
+                        <Input
+                          id="itemTitle"
+                          value={newItemTitle}
+                          onChange={(e) => setNewItemTitle(e.target.value)}
+                          placeholder="Enter item title"
+                          required
+                        />
+                      </div>
+                      <Button type="submit" className="w-full">Create Item</Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

@@ -226,3 +226,22 @@ export const GET_CHECKLIST_ITEMS = `
     }
   }
 `;
+
+export const DELETE_CHECKLIST_ITEM = `
+  mutation DeleteChecklistItem($id: ID!) {
+    deleteChecklistItem(input: {
+      id: $id
+    })
+  }
+`;
+
+export const SEARCH_USERS = `
+  query SearchUsers($query: String!) {
+    searchUsers(query: $query) {
+      id
+      email
+      isAdmin
+      createdAt
+    }
+  }
+`;
