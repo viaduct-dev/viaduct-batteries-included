@@ -10,6 +10,7 @@ mockk-jvm = "1.13.3"
 supabase = "2.0.0"
 ktor = "2.3.7"
 viaduct = "0.4.0"
+java-jwt = "4.4.0"
 
 [plugins]
 dependencyManagement = { id = "io.spring.dependency-management", version.ref = "dependencyManagement" }
@@ -39,3 +40,4 @@ supabase-postgrest-kt = { group = "io.github.jan-tennert.supabase", name = "post
 supabase-auth-kt = { group = "io.github.jan-tennert.supabase", name = "gotrue-kt", version.ref = "supabase" }
 ktor-client-cio = { group = "io.ktor", name = "ktor-client-cio", version.ref = "ktor" }
 viaduct-service-wiring = { group = "com.airbnb.viaduct", name = "service-wiring", version.ref = "viaduct" }
+java-jwt = { group = "com.auth0", name = "java-jwt", version.ref = "java-jwt" }

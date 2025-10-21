@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { UserList } from "@/components/UserList";
+import { GroupManager } from "@/components/GroupManager";
+import { ChecklistManager } from "@/components/ChecklistManager";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -83,19 +85,9 @@ const Index = () => {
 
         {isAdmin && <UserList />}
 
-        {!isAdmin && (
-          <Card className="shadow-elegant">
-            <CardHeader>
-              <CardTitle>Welcome</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                You are logged in as a regular user. This is a base application
-                ready for additional features to be built.
-              </p>
-            </CardContent>
-          </Card>
-        )}
+        <GroupManager />
+
+        <ChecklistManager />
 
         <p className="text-center text-sm text-muted-foreground">
           Powered by GraphQL • {session.user.email}
