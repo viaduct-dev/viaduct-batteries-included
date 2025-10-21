@@ -43,6 +43,7 @@ dependencies {
     implementation(libs.supabase.postgrest.kt)
     implementation(libs.supabase.auth.kt)
     implementation(libs.ktor.client.cio)
+    implementation(libs.java.jwt)
 
     // Ktor test dependencies
     testImplementation("io.ktor:ktor-server-test-host:2.3.7")

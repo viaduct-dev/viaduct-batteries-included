@@ -8,6 +8,8 @@ import io.github.jan.supabase.gotrue.user.UserInfo
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
 import io.ktor.client.*
+import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.client.call.*
@@ -70,12 +72,36 @@ open class SupabaseService(
     val supabaseUrl: String,
     val supabaseKey: String
 ) {
+    // Custom HTTP client with extended timeout configuration
+    // Auth requests can be slow in local development, so we use a longer timeout
+    private val customHttpClient = HttpClient(CIO) {
+        install(HttpTimeout) {
+            requestTimeoutMillis = 60_000  // 60 seconds for auth requests
+            connectTimeoutMillis = 60_000
+            socketTimeoutMillis = 60_000
+        }
+
+        engine {
+            requestTimeout = 60_000
+            endpoint {
+                connectTimeout = 60_000
+                requestTimeout = 60_000
+                socketTimeout = 60_000
+            }
+        }
+    }
+
     // Admin client for token verification only
     private val adminClient: SupabaseClient = createSupabaseClient(
         supabaseUrl = supabaseUrl,
         supabaseKey = supabaseKey
     ) {
-        install(Auth)
+        install(Auth) {
+            // Configure Auth module to use longer timeout for token verification
+            // This is needed because local Supabase can be slow
+        }
+
+        httpEngine = customHttpClient.engine
     }
 
     /**
@@ -94,13 +120,14 @@ open class SupabaseService(
      * This client will use the user's JWT token, enabling RLS policies
      */
     fun createAuthenticatedClient(accessToken: String): AuthenticatedSupabaseClient {
-        // Create a client that will use the user's access token
-        // Supabase RLS will automatically use the JWT claims from this token
+        // Create a client that will use the user's access token for all requests
+        // By using the token as the supabaseKey, Postgrest will automatically add it to headers
         val client = createSupabaseClient(
             supabaseUrl = supabaseUrl,
-            supabaseKey = accessToken // Use the user's JWT instead of the anon key
+            supabaseKey = accessToken // Pass JWT as the key for Postgrest requests
         ) {
             install(Postgrest)
+            httpEngine = customHttpClient.engine
         }
 
         return AuthenticatedSupabaseClient(client, accessToken, supabaseUrl, supabaseKey)
@@ -256,30 +283,26 @@ class AuthenticatedSupabaseClient(
 
     /**
      * Get all checkbox groups the user is a member of
+     * Uses the Supabase Postgrest client which properly handles RLS policies
      */
     suspend fun getCheckboxGroups(): List<com.graphqlcheckmate.services.CheckboxGroupEntity> {
-        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/checkbox_groups") {
-            header("Authorization", "Bearer $accessToken")
-            header("apikey", supabaseKey)
-            parameter("select", "*")
-        }
-        val jsonString = response.bodyAsText()
-        return json.decodeFromString(jsonString)
+        return client.from("checkbox_groups")
+            .select()
+            .decodeList<com.graphqlcheckmate.services.CheckboxGroupEntity>()
     }
 
     /**
      * Get a specific checkbox group by ID
+     * Uses the Supabase Postgrest client which properly handles RLS policies
      */
     suspend fun getCheckboxGroupById(groupId: String): com.graphqlcheckmate.services.CheckboxGroupEntity? {
-        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/checkbox_groups") {
-            header("Authorization", "Bearer $accessToken")
-            header("apikey", supabaseKey)
-            parameter("id", "eq.$groupId")
-            parameter("select", "*")
-        }
-        val jsonString = response.bodyAsText()
-        val groups = json.decodeFromString<List<com.graphqlcheckmate.services.CheckboxGroupEntity>>(jsonString)
-        return groups.firstOrNull()
+        return client.from("checkbox_groups")
+            .select {
+                filter {
+                    eq("id", groupId)
+                }
+            }
+            .decodeSingleOrNull<com.graphqlcheckmate.services.CheckboxGroupEntity>()
     }
 
     /**
