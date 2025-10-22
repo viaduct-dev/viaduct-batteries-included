@@ -1,11 +1,9 @@
 package com.graphqlcheckmate.resolvers
 
-import com.graphqlcheckmate.config.RequestContext
 import com.graphqlcheckmate.resolvers.resolverbases.MutationResolvers
 import com.graphqlcheckmate.services.GroupService
 import viaduct.api.Resolver
 import viaduct.api.grts.GroupMember
-import java.util.Base64
 
 /**
  * Resolver for the addGroupMember mutation.
@@ -18,13 +16,11 @@ class AddGroupMemberResolver(
 ) : MutationResolvers.AddGroupMember() {
     override suspend fun resolve(ctx: Context): GroupMember {
         val input = ctx.arguments.input
-        // Decode the GlobalID to get the internal UUID
-        val decoded = String(Base64.getDecoder().decode(input.groupId))
-        val groupId = decoded.substringAfter(":")
+        // Use Viaduct's internalID property to get the UUID
+        val groupId = input.groupId.internalID
 
-        val requestContext = ctx.requestContext as RequestContext
         val memberEntity = groupService.addGroupMember(
-            requestContext = requestContext,
+            authenticatedClient = ctx.authenticatedClient,
             groupId = groupId,
             userId = input.userId
         )

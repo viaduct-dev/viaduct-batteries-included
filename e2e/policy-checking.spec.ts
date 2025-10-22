@@ -180,7 +180,7 @@ test.describe('Group Policy Checking', () => {
 
     // Wait for initial loading to complete by checking that content is visible
     await expect(page.getByRole('button', { name: 'Create Group' })).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole('button', { name: 'Add Item' })).toBeVisible({ timeout: 10000 });
+    // Note: "Add Item" button only appears after a group is created
 
     // Create a group using the UI
     await page.getByRole('button', { name: 'Create Group' }).click();
@@ -249,23 +249,21 @@ test.describe('Group Policy Checking', () => {
     // Verify membership count (use .first() to handle multiple groups)
     await expect(page.getByText('Owner • 1 member').first()).toBeVisible({ timeout: 10000 });
 
-    // Reload page to ensure dropdown fetches the newly created group
+    // Reload page to ensure the group is fully loaded
     await page.reload();
     await expect(page.getByRole('button', { name: 'Add Item' })).toBeVisible({ timeout: 10000 });
     await expect(groupHeading).toBeVisible({ timeout: 10000 });
 
     // Create a checklist item
+    // Note: "Add Item" button is scoped to the group, so clicking it will create an item in that group
     await page.getByRole('button', { name: 'Add Item' }).click();
+
+    // Wait for the dialog to open
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByText(`Create New Checklist Item in ${GROUP_NAME}`)).toBeVisible();
+
     await page.getByRole('textbox', { name: 'Item Title' }).fill(CHECKLIST_ITEM_TITLE);
-    await page.getByRole('combobox').click();
-
-    // Now the dropdown should show the newly created group
-    await page.getByRole('option').filter({ hasText: GROUP_NAME }).click();
-
-    // Wait for the form to update with the selected group
-    await page.waitForTimeout(500);
-
-    await page.getByRole('button', { name: 'Create Item' }).last().click();
+    await page.getByRole('button', { name: 'Create Item' }).click();
 
     // Wait for success notification (use .first() to handle duplicate toast elements)
     await expect(page.getByText('Item created').first()).toBeVisible();
@@ -280,10 +278,22 @@ test.describe('Group Policy Checking', () => {
     // Sign in as User 1
     await signIn(page, TEST_USERS.user1.email, TEST_USERS.user1.password);
 
-    // Add User 2 to the group using the predefined user ID
+    // Add User 2 to the group using email search
     await page.getByRole('button', { name: 'Add Member' }).click();
-    await page.getByRole('textbox', { name: 'User ID' }).fill(TEST_USERS.user2.userId);
-    await page.getByRole('button', { name: 'Add Member' }).last().click();
+
+    // Wait for dialog to open
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByText('Add Member to Group')).toBeVisible();
+
+    // Search for User 2 by email
+    await page.getByLabel('Search User by Email').fill(TEST_USERS.user2.email);
+
+    // Wait for and click the search result
+    await expect(page.getByText(TEST_USERS.user2.email).first()).toBeVisible({ timeout: 5000 });
+    await page.getByText(TEST_USERS.user2.email).first().click();
+
+    // Click the Add Member submit button
+    await page.getByRole('button', { name: 'Add Member' }).click();
 
     // Verify member was added (use .first() to handle duplicate toast elements)
     await expect(page.getByText('Member added').first()).toBeVisible();
@@ -312,13 +322,10 @@ test.describe('Group Policy Checking', () => {
     // Sign in as User 3
     await signIn(page, TEST_USERS.user3.email, TEST_USERS.user3.password);
 
-    // Verify User 3 cannot see the group
+    // Verify User 3 cannot see the group (no groups message should be visible)
     await expect(page.getByText('No groups yet. Create your first group to get started!')).toBeVisible();
 
-    // Verify User 3 cannot see checklist items
-    await expect(page.getByText('Create a group first to add checklist items')).toBeVisible();
-
-    // Verify the specific group and item are not visible
+    // Verify the specific group and item created by User 1 are not visible to User 3
     await expect(page.getByRole('heading', { name: GROUP_NAME })).not.toBeVisible();
     await expect(page.getByText(CHECKLIST_ITEM_TITLE)).not.toBeVisible();
   });

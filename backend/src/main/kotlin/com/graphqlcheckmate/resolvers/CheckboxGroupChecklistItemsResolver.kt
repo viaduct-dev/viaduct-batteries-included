@@ -1,26 +1,21 @@
 package com.graphqlcheckmate.resolvers
 
-import com.graphqlcheckmate.config.RequestContext
 import com.graphqlcheckmate.resolvers.resolverbases.CheckboxGroupResolvers
-import com.graphqlcheckmate.services.GroupService
 import viaduct.api.Resolver
 import viaduct.api.grts.ChecklistItem
 
 /**
  * Field resolver for CheckboxGroup.checklistItems.
  * Returns all checklist items belonging to the checkbox group.
+ * Authorization: Database RLS policies enforce access control.
  */
 @Resolver(objectValueFragment = "fragment _ on CheckboxGroup { id }")
-class CheckboxGroupChecklistItemsResolver(
-    private val groupService: GroupService
-) : CheckboxGroupResolvers.ChecklistItems() {
+class CheckboxGroupChecklistItemsResolver : CheckboxGroupResolvers.ChecklistItems() {
     override suspend fun resolve(ctx: Context): List<ChecklistItem> {
         // Access parent CheckboxGroup via objectValue
         val groupId = ctx.objectValue.getId().internalID
 
-        val requestContext = ctx.requestContext as RequestContext
-        val client = requestContext.authenticatedClient
-        val itemEntities = client.getChecklistItemsByGroup(groupId)
+        val itemEntities = ctx.authenticatedClient.getChecklistItemsByGroup(groupId)
 
         return itemEntities.map { entity ->
             ChecklistItem.Builder(ctx)

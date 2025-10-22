@@ -1,32 +1,22 @@
 package com.graphqlcheckmate.resolvers
 
-import com.graphqlcheckmate.config.RequestContext
 import com.graphqlcheckmate.resolvers.resolverbases.MutationResolvers
-import com.graphqlcheckmate.services.GroupService
 import viaduct.api.Resolver
 import viaduct.api.grts.ChecklistItem
-import java.util.Base64
 
 /**
  * Resolver for the updateChecklistItem mutation.
  * Updates a checklist item (completion status and/or title).
- * Only members of the item's group can update it (enforced by RLS).
+ * Authorization: Viaduct @requiresGroupMembership policy ensures only group members can update.
  */
 @Resolver
-class UpdateChecklistItemResolver(
-    private val groupService: GroupService
-) : MutationResolvers.UpdateChecklistItem() {
+class UpdateChecklistItemResolver : MutationResolvers.UpdateChecklistItem() {
     override suspend fun resolve(ctx: Context): ChecklistItem {
         val input = ctx.arguments.input
-        // Decode the GlobalID to get the internal UUID
-        val decoded = String(Base64.getDecoder().decode(input.id))
-        val itemId = decoded.substringAfter(":")
+        // Use Viaduct's internalID property to get the UUID
+        val itemId = input.id.internalID
 
-        val requestContext = ctx.requestContext as RequestContext
-        val client = requestContext.authenticatedClient
-
-        // Authorization is checked by Viaduct policy executor before this resolver runs
-        // The @requiresGroupMembership directive on the mutation ensures only group members can update
+        val client = ctx.authenticatedClient
 
         // Update the item with the provided values (null values are not updated)
         val itemEntity = client.updateChecklistItem(
@@ -36,7 +26,7 @@ class UpdateChecklistItemResolver(
         )
 
         return ChecklistItem.Builder(ctx)
-            .id(ctx.globalIDFor(ChecklistItem.Reflection, itemEntity.id))
+            .id(input.id)  // Reuse the GlobalID from input instead of regenerating
             .title(itemEntity.title)
             .completed(itemEntity.completed)
             .userId(itemEntity.user_id)

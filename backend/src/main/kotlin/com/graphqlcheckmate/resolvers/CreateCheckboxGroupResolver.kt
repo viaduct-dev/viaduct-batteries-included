@@ -1,6 +1,5 @@
 package com.graphqlcheckmate.resolvers
 
-import com.graphqlcheckmate.config.RequestContext
 import com.graphqlcheckmate.resolvers.resolverbases.MutationResolvers
 import com.graphqlcheckmate.services.GroupService
 import viaduct.api.Resolver
@@ -17,11 +16,10 @@ class CreateCheckboxGroupResolver(
 ) : MutationResolvers.CreateCheckboxGroup() {
     override suspend fun resolve(ctx: Context): CheckboxGroup {
         val input = ctx.arguments.input
-        val requestContext = ctx.requestContext as RequestContext
-        val userId = requestContext.graphQLContext.userId
+        val userId = ctx.userId
 
         val groupEntity = groupService.createGroup(
-            requestContext = requestContext,
+            authenticatedClient = ctx.authenticatedClient,
             name = input.name,
             description = input.description,
             ownerId = userId

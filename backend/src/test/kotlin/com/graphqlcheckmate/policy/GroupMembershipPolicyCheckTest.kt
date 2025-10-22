@@ -9,6 +9,8 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -25,7 +27,8 @@ import viaduct.engine.api.EngineObjectData
  * Even though SupabaseService is 'open', MockK's inline instrumentation
  * fails with Java 21, so we use a fake implementation instead.
  */
-class FakeSupabaseService : SupabaseService("fake-url", "fake-key") {
+class FakeSupabaseService(httpClient: HttpClient = HttpClient(CIO))
+    : SupabaseService("fake-url", "fake-key", httpClient) {
     override fun getAuthenticatedClient(requestContext: Any?): AuthenticatedSupabaseClient {
         // Return a relaxed mock client for testing
         return mockk<AuthenticatedSupabaseClient>(relaxed = true)

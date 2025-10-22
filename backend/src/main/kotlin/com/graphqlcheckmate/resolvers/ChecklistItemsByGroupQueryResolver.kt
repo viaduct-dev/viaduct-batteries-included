@@ -1,29 +1,21 @@
 package com.graphqlcheckmate.resolvers
 
-import com.graphqlcheckmate.config.RequestContext
 import com.graphqlcheckmate.resolvers.resolverbases.QueryResolvers
-import com.graphqlcheckmate.services.GroupService
 import viaduct.api.Resolver
 import viaduct.api.grts.ChecklistItem
-import java.util.Base64
 
 /**
  * Resolver for the checklistItemsByGroup query.
  * Returns all checklist items for a specific group.
- * Only accessible if the user is a member of the group.
+ * Authorization: Database RLS policies enforce that only group members can access items.
  */
 @Resolver
-class ChecklistItemsByGroupQueryResolver(
-    private val groupService: GroupService
-) : QueryResolvers.ChecklistItemsByGroup() {
+class ChecklistItemsByGroupQueryResolver : QueryResolvers.ChecklistItemsByGroup() {
     override suspend fun resolve(ctx: Context): List<ChecklistItem> {
-        // Decode the GlobalID to get the internal UUID
-        val globalIdString = ctx.arguments.groupId
-        val decoded = String(Base64.getDecoder().decode(globalIdString))
-        val groupId = decoded.substringAfter(":")
+        // Use Viaduct's internalID property to get the UUID
+        val groupId = ctx.arguments.groupId.internalID
 
-        val requestContext = ctx.requestContext as RequestContext
-        val client = requestContext.authenticatedClient
+        val client = ctx.authenticatedClient
         val itemEntities = client.getChecklistItemsByGroup(groupId)
 
         return itemEntities.map { entity ->

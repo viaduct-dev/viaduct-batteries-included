@@ -58,6 +58,31 @@ data class UpdateChecklistItemInput(
 )
 
 /**
+ * Input for setting user admin status RPC call
+ */
+@Serializable
+data class SetUserAdminInput(
+    val target_user_id: String,
+    val is_admin: Boolean
+)
+
+/**
+ * Input for searching users RPC call
+ */
+@Serializable
+data class SearchUsersInput(
+    val search_query: String
+)
+
+/**
+ * Input for deleting user RPC call
+ */
+@Serializable
+data class DeleteUserInput(
+    val user_id: String
+)
+
+/**
  * Request context that can be safely serialized
  * Contains only the user ID, not the authenticated client (which is not serializable)
  */
@@ -70,28 +95,11 @@ data class GraphQLRequestContext(
 
 open class SupabaseService(
     val supabaseUrl: String,
-    val supabaseKey: String
+    val supabaseKey: String,
+    private val httpClient: HttpClient
 ) {
-    // Custom HTTP client with extended timeout configuration
-    // Auth requests can be slow in local development, so we use a longer timeout
-    private val customHttpClient = HttpClient(CIO) {
-        install(HttpTimeout) {
-            requestTimeoutMillis = 60_000  // 60 seconds for auth requests
-            connectTimeoutMillis = 60_000
-            socketTimeoutMillis = 60_000
-        }
-
-        engine {
-            requestTimeout = 60_000
-            endpoint {
-                connectTimeout = 60_000
-                requestTimeout = 60_000
-                socketTimeout = 60_000
-            }
-        }
-    }
-
     // Admin client for token verification only
+    // Uses the shared HttpClient injected from Koin for connection pooling
     private val adminClient: SupabaseClient = createSupabaseClient(
         supabaseUrl = supabaseUrl,
         supabaseKey = supabaseKey
@@ -101,7 +109,7 @@ open class SupabaseService(
             // This is needed because local Supabase can be slow
         }
 
-        httpEngine = customHttpClient.engine
+        httpEngine = httpClient.engine
     }
 
     /**
@@ -119,7 +127,7 @@ open class SupabaseService(
      * Create an authenticated Supabase client for a specific user
      * This client will use the user's JWT token, enabling RLS policies
      */
-    fun createAuthenticatedClient(accessToken: String, httpClient: HttpClient): AuthenticatedSupabaseClient {
+    fun createAuthenticatedClient(accessToken: String, sharedHttpClient: HttpClient): AuthenticatedSupabaseClient {
         // Create a client that will use the user's access token for all requests
         // By using the token as the supabaseKey, Postgrest will automatically add it to headers
         val client = createSupabaseClient(
@@ -127,30 +135,22 @@ open class SupabaseService(
             supabaseKey = accessToken // Pass JWT as the key for Postgrest requests
         ) {
             install(Postgrest)
-            httpEngine = customHttpClient.engine
+            httpEngine = httpClient.engine  // Use the injected shared HttpClient
         }
 
-        return AuthenticatedSupabaseClient(client, httpClient, accessToken, supabaseUrl, supabaseKey)
+        return AuthenticatedSupabaseClient(client, sharedHttpClient, accessToken, supabaseUrl, supabaseKey)
     }
 
     /**
      * Helper function to extract authenticated client from request context
      * This should be called by resolvers to get a client for database operations
-     * Note: Creates a new HttpClient - for production use, prefer injecting via Koin
+     * Uses the shared HttpClient for connection pooling
      */
     open fun getAuthenticatedClient(requestContext: Any?): AuthenticatedSupabaseClient {
         val context = requestContext as? GraphQLRequestContext
             ?: throw IllegalArgumentException("Authentication required: invalid or missing request context")
 
-        // Create HttpClient for backward compatibility (mainly for tests)
-        val httpClient = HttpClient(CIO) {
-            install(HttpTimeout) {
-                requestTimeoutMillis = 60_000
-                connectTimeoutMillis = 60_000
-                socketTimeoutMillis = 60_000
-            }
-        }
-
+        // Use the shared HttpClient injected via constructor
         return createAuthenticatedClient(context.accessToken, httpClient)
     }
 }
@@ -253,11 +253,12 @@ class AuthenticatedSupabaseClient(
      */
     suspend fun callSetUserAdmin(userId: String, isAdmin: Boolean) {
         // Call the PostgreSQL RPC function via HTTP
+        val input = SetUserAdminInput(target_user_id = userId, is_admin = isAdmin)
         httpClient.post("$supabaseUrl/rest/v1/rpc/set_user_admin") {
             header("Authorization", "Bearer $accessToken")
             header("apikey", supabaseKey)
             contentType(ContentType.Application.Json)
-            setBody("""{"target_user_id":"$userId","is_admin":$isAdmin}""")
+            setBody(json.encodeToString(SetUserAdminInput.serializer(), input))
         }
     }
 
@@ -282,11 +283,12 @@ class AuthenticatedSupabaseClient(
      */
     suspend fun searchUsers(query: String): List<UserEntity> {
         // Call the PostgreSQL RPC function via HTTP
+        val input = SearchUsersInput(search_query = query)
         val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/rpc/search_users") {
             header("Authorization", "Bearer $accessToken")
             header("apikey", supabaseKey)
             contentType(ContentType.Application.Json)
-            setBody("""{"search_query":"$query"}""")
+            setBody(json.encodeToString(SearchUsersInput.serializer(), input))
         }
         val jsonString = response.bodyAsText()
         return json.decodeFromString(jsonString)
@@ -298,11 +300,12 @@ class AuthenticatedSupabaseClient(
      */
     suspend fun deleteUser(userId: String): Boolean {
         // Call the PostgreSQL RPC function via HTTP
+        val input = DeleteUserInput(user_id = userId)
         httpClient.post("$supabaseUrl/rest/v1/rpc/delete_user_by_id") {
             header("Authorization", "Bearer $accessToken")
             header("apikey", supabaseKey)
             contentType(ContentType.Application.Json)
-            setBody("""{"user_id":"$userId"}""")
+            setBody(json.encodeToString(DeleteUserInput.serializer(), input))
         }
         return true
     }

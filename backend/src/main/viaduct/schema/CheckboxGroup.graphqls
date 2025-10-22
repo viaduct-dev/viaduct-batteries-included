@@ -91,7 +91,7 @@ input AddGroupMemberInput @scope(to: ["default"]) {
   """
   The ID of the group.
   """
-  groupId: ID!
+  groupId: ID! @idOf(type: "CheckboxGroup")
 
   """
   The email or ID of the user to add.
@@ -106,7 +106,7 @@ input RemoveGroupMemberInput @scope(to: ["default"]) {
   """
   The ID of the group.
   """
-  groupId: ID!
+  groupId: ID! @idOf(type: "CheckboxGroup")
 
   """
   The user ID to remove.
@@ -124,7 +124,7 @@ extend type Query @scope(to: ["default"]) {
   Get a specific checkbox group by ID.
   Only accessible if the user is a member.
   """
-  checkboxGroup(id: ID!): CheckboxGroup @resolver
+  checkboxGroup(id: ID! @idOf(type: "CheckboxGroup")): CheckboxGroup @resolver
 }
 
 extend type Mutation @scope(to: ["default"]) {

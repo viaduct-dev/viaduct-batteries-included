@@ -53,7 +53,7 @@ input CreateChecklistItemInput @scope(to: ["default"]) {
   The group ID this item belongs to.
   Required for group-based items.
   """
-  groupId: ID!
+  groupId: ID! @idOf(type: "CheckboxGroup")
 }
 
 """
@@ -63,7 +63,7 @@ input UpdateChecklistItemInput @scope(to: ["default"]) {
   """
   The ID of the item to update.
   """
-  id: ID!
+  id: ID! @idOf(type: "ChecklistItem")
 
   """
   The new completion status.
@@ -83,7 +83,7 @@ input DeleteChecklistItemInput @scope(to: ["default"]) {
   """
   The ID of the item to delete.
   """
-  id: ID!
+  id: ID! @idOf(type: "ChecklistItem")
 }
 
 extend type Query @scope(to: ["default"]) {
@@ -96,7 +96,7 @@ extend type Query @scope(to: ["default"]) {
   Get checklist items for a specific group.
   Only accessible if the user is a member of the group.
   """
-  checklistItemsByGroup(groupId: ID!): [ChecklistItem!]! @resolver @requiresGroupMembership
+  checklistItemsByGroup(groupId: ID! @idOf(type: "CheckboxGroup")): [ChecklistItem!]! @resolver @requiresGroupMembership
 }
 
 extend type Mutation @scope(to: ["default"]) {

@@ -39,14 +39,32 @@ val GraphQLAuthentication = createApplicationPlugin(
             // Store in call attributes for route handlers to access
             call.attributes.put(RequestContextKey, requestContext)
 
+        } catch (e: IllegalArgumentException) {
+            // Expected authentication failures (missing token, invalid format, etc.)
+            // These are client errors that should return 401 Unauthorized
+            call.respond(
+                HttpStatusCode.Unauthorized,
+                objectMapper.writeValueAsString(mapOf("error" to (e.message ?: "Authentication failed")))
+            )
         } catch (e: Exception) {
-            // Authentication failed - return 401 with appropriate error message
+            // Authentication-related errors (invalid token, token verification failures)
+            // Koin may wrap exceptions, so check the root cause for authentication-specific messages
             val rootCause = generateSequence(e as Throwable) { it.cause }.last()
+            val rootMessage = rootCause.message ?: e.message
+
+            // Log for monitoring
+            call.application.log.warn("Authentication failed: $rootMessage", e)
+
+            // Return user-friendly error message based on the root cause
             val errorMessage = when {
-                rootCause is IllegalArgumentException && rootCause.message?.contains("Authorization header required") == true ->
-                    rootCause.message
+                rootMessage?.contains("Authorization header required", ignoreCase = true) == true ->
+                    "Authorization header required"
+                rootMessage?.contains("token", ignoreCase = true) == true ->
+                    "Invalid or expired token"
+                rootMessage?.contains("auth", ignoreCase = true) == true ->
+                    "Authentication failed"
                 else ->
-                    "Invalid or expired token: ${rootCause.message ?: e.message}"
+                    "Invalid or expired token"
             }
 
             call.respond(

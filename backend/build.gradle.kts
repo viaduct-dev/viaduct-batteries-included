@@ -24,6 +24,7 @@ dependencies {
     implementation("io.ktor:ktor-server-content-negotiation:3.2.0")
     implementation("io.ktor:ktor-serialization-jackson:3.2.0")
     implementation("io.ktor:ktor-server-cors:3.2.0")
+    implementation("io.ktor:ktor-server-call-logging:3.2.0")
 
     // Kotlin and coroutines
     implementation(libs.kotlin.reflect)

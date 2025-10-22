@@ -5,17 +5,23 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.graphqlcheckmate.config.KoinTenantCodeInjector
 import com.graphqlcheckmate.config.RequestContext
 import com.graphqlcheckmate.config.appModule
+import com.graphqlcheckmate.models.GraphQLRequest
 import com.graphqlcheckmate.plugins.GraphQLAuthentication
 import com.graphqlcheckmate.plugins.requestContext
 import com.graphqlcheckmate.policy.GroupMembershipCheckerFactory
 import com.graphqlcheckmate.services.AuthService
 import com.graphqlcheckmate.services.GroupService
+import io.ktor.client.*
 import io.ktor.http.*
+import io.ktor.serialization.jackson.*
 import io.ktor.server.application.*
+import io.ktor.server.plugins.calllogging.*
+import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.plugins.cors.routing.CORS
+import org.slf4j.event.Level
 import org.koin.ktor.plugin.Koin
 import org.koin.ktor.plugin.scope
 import org.koin.ktor.ext.get
@@ -43,10 +49,40 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
     // Create object mapper for JSON serialization
     val objectMapper = jacksonObjectMapper()
 
+    // Install CallLogging for structured request/response logging
+    install(CallLogging) {
+        level = Level.INFO
+        filter { call ->
+            // Log GraphQL and health endpoints
+            call.request.path().startsWith("/graphql") || call.request.path().startsWith("/health")
+        }
+        format { call ->
+            val status = call.response.status()
+            val httpMethod = call.request.httpMethod.value
+            val userAgent = call.request.headers["User-Agent"]
+            val path = call.request.path()
+            "$httpMethod $path - $status - $userAgent"
+        }
+    }
+
+    // Install ContentNegotiation for automatic JSON serialization
+    install(ContentNegotiation) {
+        jackson {
+            // Use the same ObjectMapper configuration as the manual one
+            // This ensures consistent JSON serialization throughout the app
+        }
+    }
+
     // Install Koin plugin for dependency injection (Koin 4.x pattern)
     install(Koin) {
         slf4jLogger()
         modules(appModule(supabaseUrl, supabaseKey))
+    }
+
+    // Register shutdown hook to close HttpClient properly
+    monitor.subscribe(ApplicationStopped) {
+        val httpClient = getKoin().getOrNull<HttpClient>()
+        httpClient?.close()
     }
 
     // Install GraphQL authentication plugin
@@ -56,16 +92,16 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
     }
 
     // Get the Koin instance from the application context
-    val koinInstance = getKoin()
+    val koin = getKoin()
 
     // Use Koin-based dependency injector for Viaduct resolvers
-    val koinInjector = KoinTenantCodeInjector(koinInstance)
+    val koinInjector = KoinTenantCodeInjector(koin)
 
     // Get services from Koin for application configuration
     // Note: These are singletons needed at application startup for Viaduct configuration
-    val authService = get<AuthService>()
-    val groupService = get<GroupService>()
-    val supabaseService = get<SupabaseService>()
+    val authService = koin.get<AuthService>()
+    val groupService = koin.get<GroupService>()
+    val supabaseService = koin.get<SupabaseService>()
 
     // Build Viaduct service using StandardViaduct.Builder
     // Register CheckerExecutorFactory for policy checks
@@ -90,7 +126,7 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
         .build()
 
     // Install CORS plugin (with idempotency check for test compatibility)
-    try {
+    if (pluginOrNull(CORS) == null) {
         install(CORS) {
             allowMethod(HttpMethod.Options)
             allowMethod(HttpMethod.Post)
@@ -98,21 +134,34 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
             allowHeader(HttpHeaders.Authorization)
             allowHeader(HttpHeaders.ContentType)
             allowHeader("X-User-Id")
-            anyHost()
+
+            // Use environment-based configuration for security
+            // In production, set ALLOWED_ORIGINS to comma-separated list of allowed origins
+            val allowedOrigins = System.getenv("ALLOWED_ORIGINS")
+                ?.split(",")
+                ?.map { it.trim() }
+                ?: listOf("http://localhost:5173", "http://127.0.0.1:5173")
+
+            allowedOrigins.forEach { origin ->
+                // Parse the origin URI to extract host and scheme
+                // allowHost() expects just the hostname:port, not the full URL
+                val uri = java.net.URI(origin)
+                val host = if (uri.port != -1) {
+                    "${uri.host}:${uri.port}"
+                } else {
+                    uri.host
+                }
+                val scheme = uri.scheme
+                allowHost(host, schemes = listOf(scheme))
+            }
         }
-    } catch (e: io.ktor.server.application.DuplicatePluginException) {
-        // Plugin already installed - this is expected in test scenarios
     }
 
     routing {
         post("/graphql") {
+            // Type-safe deserialization of GraphQL request
             val requestBody = call.receiveText()
-            val request = objectMapper.readValue(requestBody, Map::class.java)
-
-            @Suppress("UNCHECKED_CAST")
-            val query = request["query"] as? String ?: ""
-            @Suppress("UNCHECKED_CAST")
-            val variables = request["variables"] as? Map<String, Any?> ?: emptyMap()
+            val request = objectMapper.readValue(requestBody, GraphQLRequest::class.java)
 
             // Get RequestContext - authentication is already handled by the plugin
             val requestContextWrapper = call.requestContext
@@ -124,19 +173,22 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
             // Viaduct will pass this to all resolvers and policy executors
             val executionInput = ViaductExecutionInput.create(
                 schemaId = schemaId,
-                operationText = query,
-                variables = variables,
+                operationText = request.query,
+                variables = request.variables,
                 requestContext = requestContextWrapper // Pass the typed wrapper!
             )
 
             // Execute GraphQL query
             val result = viaduct.execute(executionInput)
 
-            call.respond(HttpStatusCode.OK, objectMapper.writeValueAsString(result.toSpecification()))
+            // Ktor's ContentNegotiation automatically serializes the response to JSON
+            call.respond(HttpStatusCode.OK, result.toSpecification())
         }
 
         get("/graphiql") {
-            call.respondText(graphiQLHtml(), ContentType.Text.Html)
+            val html = this::class.java.classLoader.getResource("graphiql.html")?.readText()
+                ?: error("graphiql.html not found in resources")
+            call.respondText(html, ContentType.Text.Html)
         }
 
         get("/health") {
@@ -146,26 +198,3 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
 }
 
 // Entry point is now EngineMain configured via application.conf
-
-private fun graphiQLHtml() = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>GraphiQL</title>
-    <link rel="stylesheet" href="https://unpkg.com/graphiql/graphiql.min.css" />
-</head>
-<body style="margin: 0;">
-    <div id="graphiql" style="height: 100vh;"></div>
-    <script crossorigin src="https://unpkg.com/react/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom/umd/react-dom.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/graphiql/graphiql.min.js"></script>
-    <script>
-        const fetcher = GraphiQL.createFetcher({ url: '/graphql' });
-        ReactDOM.render(
-            React.createElement(GraphiQL, { fetcher: fetcher }),
-            document.getElementById('graphiql'),
-        );
-    </script>
-</body>
-</html>
-""".trimIndent()

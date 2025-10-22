@@ -20,6 +20,9 @@ import org.koin.module.requestScope
  */
 fun appModule(supabaseUrl: String, supabaseKey: String) = module {
     // HTTP client (singleton) - shared across all requests for connection pooling
+    // Note: Koin 4.x doesn't have built-in onClose callbacks for singletons.
+    // The HttpClient will be closed when the application shuts down via a shutdown hook
+    // or when the Koin context is explicitly stopped.
     single {
         HttpClient(CIO) {
             install(HttpTimeout) {
@@ -31,7 +34,8 @@ fun appModule(supabaseUrl: String, supabaseKey: String) = module {
     }
 
     // Core services (singletons)
-    single { SupabaseService(supabaseUrl, supabaseKey) }
+    // Inject the shared HttpClient into SupabaseService for connection pooling
+    single { SupabaseService(supabaseUrl, supabaseKey, get()) }
     singleOf(::AuthService)
     singleOf(::UserService)
     singleOf(::GroupService)

@@ -1,35 +1,26 @@
 package com.graphqlcheckmate.resolvers
 
-import com.graphqlcheckmate.config.RequestContext
 import com.graphqlcheckmate.resolvers.resolverbases.MutationResolvers
-import com.graphqlcheckmate.services.GroupService
 import viaduct.api.Resolver
 import viaduct.api.grts.ChecklistItem
-import java.util.Base64
 
 /**
  * Resolver for the createChecklistItem mutation.
  * Creates a new checklist item in a group.
- * Only members of the group can create items (enforced by RLS).
+ * Authorization: Database RLS policies enforce that only group members can create items.
  */
 @Resolver
-class CreateChecklistItemResolver(
-    private val groupService: GroupService
-) : MutationResolvers.CreateChecklistItem() {
+class CreateChecklistItemResolver : MutationResolvers.CreateChecklistItem() {
     override suspend fun resolve(ctx: Context): ChecklistItem {
         val input = ctx.arguments.input
 
-        // Extract the request context
-        val requestContext = ctx.requestContext as RequestContext
+        // Get the user ID from extension property
+        val userId = ctx.userId
 
-        // Get the user ID from the GraphQL context
-        val userId = requestContext.graphQLContext.userId
+        // Use Viaduct's internalID property to get the UUID
+        val groupId = input.groupId.internalID
 
-        // Decode the GlobalID to get the internal UUID
-        val decoded = String(Base64.getDecoder().decode(input.groupId))
-        val groupId = decoded.substringAfter(":")
-
-        val client = requestContext.authenticatedClient
+        val client = ctx.authenticatedClient
         val itemEntity = client.createChecklistItem(
             title = input.title,
             userId = userId,

@@ -52,17 +52,49 @@ class GroupMembershipPolicyExecutor(
         if (objectData == null) {
             val groupIdArg = arguments[groupIdFieldName]
             if (groupIdArg != null) {
-                // The argument can be either a GlobalID object or a serialized String (base64-encoded)
+                // Policy executors run at the engine level, BEFORE argument deserialization.
+                // In production, they receive base64-encoded GlobalID strings from GraphQL queries.
+                // However, they may also receive GlobalID objects in unit tests or edge cases.
+                //
+                // Note: Manual Base64 decoding here is unavoidable. Viaduct's GlobalIDCodec is not accessible
+                // at this layer because it's part of InternalContext, which policy executors cannot access.
+                // This is an architectural constraint of Viaduct's execution pipeline.
                 val internalGroupId = when (groupIdArg) {
-                    is GlobalID<*> -> groupIdArg.internalID
+                    is GlobalID<*> -> {
+                        // GlobalID object (from unit tests or internal Viaduct scenarios)
+                        groupIdArg.internalID
+                    }
                     is String -> {
-                        // Decode base64-encoded GlobalID string
+                        // Base64-encoded GlobalID string from GraphQL queries (normal case)
+                        // Format: base64("TypeName:uuid")
                         try {
                             val decoded = String(Base64.getDecoder().decode(groupIdArg))
-                            decoded.substringAfter(":")
+
+                            // Validate the GlobalID format (should be "TypeName:id")
+                            val parts = decoded.split(":", limit = 2)
+                            if (parts.size != 2) {
+                                throw IllegalArgumentException(
+                                    "Invalid GlobalID format for '$groupIdFieldName': expected 'TypeName:id' but got '$decoded'"
+                                )
+                            }
+
+                            // Extract and return the UUID part after the type name
+                            parts[1]
+                        } catch (e: IllegalArgumentException) {
+                            // Re-throw validation errors with context
+                            throw e
+                        } catch (e: IllegalStateException) {
+                            // Base64 decoding failed - invalid format
+                            throw IllegalArgumentException(
+                                "Failed to decode GlobalID for '$groupIdFieldName': invalid base64 encoding",
+                                e
+                            )
                         } catch (e: Exception) {
-                            // If decoding fails, assume it's already a UUID
-                            groupIdArg
+                            // Other decoding errors
+                            throw IllegalArgumentException(
+                                "Failed to decode GlobalID for '$groupIdFieldName': ${e.message}",
+                                e
+                            )
                         }
                     }
                     else -> throw IllegalArgumentException(

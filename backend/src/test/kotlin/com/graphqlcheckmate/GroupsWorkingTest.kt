@@ -45,7 +45,6 @@ class GroupsWorkingTest : FunSpec({
         println("✓ User signed in, got token")
 
         // 2. Create a group via GraphQL
-        val supabaseService = SupabaseService(supabaseUrl, supabaseAnonKey)
         val httpClient = HttpClient(CIO) {
             install(HttpTimeout) {
                 requestTimeoutMillis = 60_000
@@ -53,6 +52,7 @@ class GroupsWorkingTest : FunSpec({
                 socketTimeoutMillis = 60_000
             }
         }
+        val supabaseService = SupabaseService(supabaseUrl, supabaseAnonKey, httpClient)
         val authClient = supabaseService.createAuthenticatedClient(token!!, httpClient)
 
         val groupName = "Test Group ${System.currentTimeMillis()}"

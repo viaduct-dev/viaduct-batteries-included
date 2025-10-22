@@ -1,28 +1,21 @@
 package com.graphqlcheckmate.resolvers
 
-import com.graphqlcheckmate.config.RequestContext
 import com.graphqlcheckmate.resolvers.resolverbases.MutationResolvers
-import com.graphqlcheckmate.services.GroupService
 import viaduct.api.Resolver
-import java.util.Base64
 
 /**
  * Resolver for the deleteChecklistItem mutation.
  * Deletes a checklist item.
- * Only members of the item's group can delete it (enforced by RLS).
+ * Authorization: Database RLS policies enforce that only group members can delete items.
  */
 @Resolver
-class DeleteChecklistItemResolver(
-    private val groupService: GroupService
-) : MutationResolvers.DeleteChecklistItem() {
+class DeleteChecklistItemResolver : MutationResolvers.DeleteChecklistItem() {
     override suspend fun resolve(ctx: Context): Boolean {
         val input = ctx.arguments.input
-        // Decode the GlobalID to get the internal UUID
-        val decoded = String(Base64.getDecoder().decode(input.id))
-        val itemId = decoded.substringAfter(":")
+        // Use Viaduct's internalID property to get the UUID
+        val itemId = input.id.internalID
 
-        val requestContext = ctx.requestContext as RequestContext
-        val client = requestContext.authenticatedClient
+        val client = ctx.authenticatedClient
         return client.deleteChecklistItem(itemId)
     }
 }
