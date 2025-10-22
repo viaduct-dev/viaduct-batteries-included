@@ -2,6 +2,7 @@ package com.graphqlcheckmate.config
 
 import com.graphqlcheckmate.AuthenticatedSupabaseClient
 import com.graphqlcheckmate.GraphQLRequestContext
+import org.koin.core.scope.Scope
 
 /**
  * Request-scoped context containing authentication and client information.
@@ -21,5 +22,17 @@ data class RequestContext(
     /**
      * The authenticated Supabase client configured for the current user.
      */
-    val authenticatedClient: AuthenticatedSupabaseClient
-)
+    val authenticatedClient: AuthenticatedSupabaseClient,
+
+    /**
+     * The Koin request scope for this GraphQL request.
+     * This allows resolvers to access request-scoped dependencies in a type-safe manner.
+     */
+    val koinScope: Scope
+) {
+    /**
+     * Get a request-scoped dependency from Koin with type safety.
+     * Usage in resolvers: requestContext.get<SomeDependency>()
+     */
+    inline fun <reified T : Any> get(): T = koinScope.get()
+}

@@ -19,6 +19,7 @@ import io.ktor.server.plugins.cors.routing.CORS
 import org.koin.ktor.plugin.Koin
 import org.koin.ktor.plugin.scope
 import org.koin.ktor.ext.get
+import org.koin.ktor.ext.getKoin
 import org.koin.logger.slf4jLogger
 import viaduct.api.bootstrap.ViaductTenantAPIBootstrapper
 import viaduct.service.runtime.SchemaRegistryConfiguration
@@ -54,8 +55,11 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
         this.objectMapper = objectMapper
     }
 
+    // Get the Koin instance from the application context
+    val koinInstance = getKoin()
+
     // Use Koin-based dependency injector for Viaduct resolvers
-    val koinInjector = KoinTenantCodeInjector()
+    val koinInjector = KoinTenantCodeInjector(koinInstance)
 
     // Get services from Koin for application configuration
     // Note: These are singletons needed at application startup for Viaduct configuration

@@ -105,9 +105,11 @@ class GroupMembershipPolicyCheckTest : FunSpec({
         val mockClient = fakeSupabaseService.getAuthenticatedClient(null)
 
         // Create RequestContext with both dependencies
+        val mockScope = mockk<org.koin.core.scope.Scope>(relaxed = true)
         requestContextWrapper = com.graphqlcheckmate.config.RequestContext(
             graphQLContext = graphQLContext,
-            authenticatedClient = mockClient
+            authenticatedClient = mockClient,
+            koinScope = mockScope
         )
 
         // Mock execution context with the wrapped context

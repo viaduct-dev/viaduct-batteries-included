@@ -7,6 +7,9 @@ import com.graphqlcheckmate.resolvers.*
 import com.graphqlcheckmate.services.AuthService
 import com.graphqlcheckmate.services.GroupService
 import com.graphqlcheckmate.services.UserService
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.server.application.ApplicationCall
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
@@ -16,6 +19,17 @@ import org.koin.module.requestScope
  * Koin module for dependency injection configuration
  */
 fun appModule(supabaseUrl: String, supabaseKey: String) = module {
+    // HTTP client (singleton) - shared across all requests for connection pooling
+    single {
+        HttpClient(CIO) {
+            install(HttpTimeout) {
+                requestTimeoutMillis = 60_000  // 60 seconds for Supabase requests
+                connectTimeoutMillis = 60_000
+                socketTimeoutMillis = 60_000
+            }
+        }
+    }
+
     // Core services (singletons)
     single { SupabaseService(supabaseUrl, supabaseKey) }
     singleOf(::AuthService)
@@ -37,14 +51,16 @@ fun appModule(supabaseUrl: String, supabaseKey: String) = module {
         scoped<AuthenticatedSupabaseClient> {
             val requestContext = get<GraphQLRequestContext>()
             val supabaseService = get<SupabaseService>()
-            supabaseService.createAuthenticatedClient(requestContext.accessToken)
+            val httpClient = get<HttpClient>()
+            supabaseService.createAuthenticatedClient(requestContext.accessToken, httpClient)
         }
 
         // Factory for RequestContext wrapper
         scoped {
             RequestContext(
                 graphQLContext = get(),
-                authenticatedClient = get()
+                authenticatedClient = get(),
+                koinScope = this  // Pass the current request scope
             )
         }
     }

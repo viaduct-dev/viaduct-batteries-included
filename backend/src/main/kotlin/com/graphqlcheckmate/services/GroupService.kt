@@ -64,8 +64,17 @@ open class GroupService(
     /**
      * Get all groups that a user is a member of.
      */
+    suspend fun getUserGroups(authenticatedClient: AuthenticatedSupabaseClient): List<CheckboxGroupEntity> {
+        return authenticatedClient.getCheckboxGroups()
+    }
+
+    /**
+     * Get all groups that a user is a member of.
+     * @deprecated Use getUserGroups(AuthenticatedSupabaseClient) instead
+     */
+    @Deprecated("Use getUserGroups(AuthenticatedSupabaseClient) instead", ReplaceWith("getUserGroups(requestContext.authenticatedClient)"))
     suspend fun getUserGroups(requestContext: RequestContext): List<CheckboxGroupEntity> {
-        return requestContext.authenticatedClient.getCheckboxGroups()
+        return getUserGroups(requestContext.authenticatedClient)
     }
 
     /**

@@ -1,6 +1,5 @@
 package com.graphqlcheckmate.resolvers
 
-import com.graphqlcheckmate.config.RequestContext
 import com.graphqlcheckmate.resolvers.resolverbases.QueryResolvers
 import com.graphqlcheckmate.services.GroupService
 import viaduct.api.Resolver
@@ -15,8 +14,8 @@ class CheckboxGroupsQueryResolver(
     private val groupService: GroupService
 ) : QueryResolvers.CheckboxGroups() {
     override suspend fun resolve(ctx: Context): List<CheckboxGroup> {
-        val requestContext = ctx.requestContext as RequestContext
-        val groupEntities = groupService.getUserGroups(requestContext)
+        // Use extension property - no need to know about RequestContext!
+        val groupEntities = groupService.getUserGroups(ctx.authenticatedClient)
 
         return groupEntities.map { entity ->
             CheckboxGroup.Builder(ctx)

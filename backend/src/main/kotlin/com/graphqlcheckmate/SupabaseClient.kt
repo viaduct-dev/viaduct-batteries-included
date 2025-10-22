@@ -119,7 +119,7 @@ open class SupabaseService(
      * Create an authenticated Supabase client for a specific user
      * This client will use the user's JWT token, enabling RLS policies
      */
-    fun createAuthenticatedClient(accessToken: String): AuthenticatedSupabaseClient {
+    fun createAuthenticatedClient(accessToken: String, httpClient: HttpClient): AuthenticatedSupabaseClient {
         // Create a client that will use the user's access token for all requests
         // By using the token as the supabaseKey, Postgrest will automatically add it to headers
         val client = createSupabaseClient(
@@ -130,18 +130,28 @@ open class SupabaseService(
             httpEngine = customHttpClient.engine
         }
 
-        return AuthenticatedSupabaseClient(client, accessToken, supabaseUrl, supabaseKey)
+        return AuthenticatedSupabaseClient(client, httpClient, accessToken, supabaseUrl, supabaseKey)
     }
 
     /**
      * Helper function to extract authenticated client from request context
      * This should be called by resolvers to get a client for database operations
+     * Note: Creates a new HttpClient - for production use, prefer injecting via Koin
      */
     open fun getAuthenticatedClient(requestContext: Any?): AuthenticatedSupabaseClient {
         val context = requestContext as? GraphQLRequestContext
             ?: throw IllegalArgumentException("Authentication required: invalid or missing request context")
 
-        return createAuthenticatedClient(context.accessToken)
+        // Create HttpClient for backward compatibility (mainly for tests)
+        val httpClient = HttpClient(CIO) {
+            install(HttpTimeout) {
+                requestTimeoutMillis = 60_000
+                connectTimeoutMillis = 60_000
+                socketTimeoutMillis = 60_000
+            }
+        }
+
+        return createAuthenticatedClient(context.accessToken, httpClient)
     }
 }
 
@@ -151,11 +161,11 @@ open class SupabaseService(
  */
 class AuthenticatedSupabaseClient(
     private val client: SupabaseClient,
+    private val httpClient: HttpClient,
     private val accessToken: String,
     private val supabaseUrl: String,
     private val supabaseKey: String
 ) {
-    private val httpClient = HttpClient()
     private val json = Json { ignoreUnknownKeys = true }
 
     /**

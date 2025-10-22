@@ -8,6 +8,9 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.HttpTimeout
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -43,7 +46,14 @@ class GroupsWorkingTest : FunSpec({
 
         // 2. Create a group via GraphQL
         val supabaseService = SupabaseService(supabaseUrl, supabaseAnonKey)
-        val authClient = supabaseService.createAuthenticatedClient(token!!)
+        val httpClient = HttpClient(CIO) {
+            install(HttpTimeout) {
+                requestTimeoutMillis = 60_000
+                connectTimeoutMillis = 60_000
+                socketTimeoutMillis = 60_000
+            }
+        }
+        val authClient = supabaseService.createAuthenticatedClient(token!!, httpClient)
 
         val groupName = "Test Group ${System.currentTimeMillis()}"
         val userId = client.auth.currentUserOrNull()?.id
