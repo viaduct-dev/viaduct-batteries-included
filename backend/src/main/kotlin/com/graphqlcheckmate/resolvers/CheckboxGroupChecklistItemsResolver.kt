@@ -1,5 +1,6 @@
 package com.graphqlcheckmate.resolvers
 
+import com.graphqlcheckmate.config.RequestContext
 import com.graphqlcheckmate.resolvers.resolverbases.CheckboxGroupResolvers
 import com.graphqlcheckmate.services.GroupService
 import viaduct.api.Resolver
@@ -17,7 +18,8 @@ class CheckboxGroupChecklistItemsResolver(
         // Access parent CheckboxGroup via objectValue
         val groupId = ctx.objectValue.getId().internalID
 
-        val client = groupService.supabaseService.getAuthenticatedClient(ctx.requestContext)
+        val requestContext = ctx.requestContext as RequestContext
+        val client = requestContext.authenticatedClient
         val itemEntities = client.getChecklistItemsByGroup(groupId)
 
         return itemEntities.map { entity ->

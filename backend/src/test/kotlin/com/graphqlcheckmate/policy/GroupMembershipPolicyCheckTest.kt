@@ -3,6 +3,7 @@ package com.graphqlcheckmate.policy
 import com.graphqlcheckmate.AuthenticatedSupabaseClient
 import com.graphqlcheckmate.GraphQLRequestContext
 import com.graphqlcheckmate.SupabaseService
+import com.graphqlcheckmate.config.appModule
 import com.graphqlcheckmate.services.GroupService
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -11,7 +12,8 @@ import io.kotest.matchers.string.shouldContain
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
-import kotlinx.coroutines.runBlocking
+import org.koin.core.context.GlobalContext.startKoin
+import org.koin.core.context.GlobalContext.stopKoin
 import viaduct.api.globalid.GlobalID
 import viaduct.engine.api.CheckerResult
 import viaduct.engine.api.EngineExecutionContext
@@ -41,7 +43,7 @@ class FakeGroupService(supabaseService: SupabaseService) : GroupService(supabase
         memberships[Pair(userId, groupId)] = isMember
     }
 
-    override suspend fun isUserMemberOfGroup(userId: String, groupId: String, client: AuthenticatedSupabaseClient): Boolean {
+    override suspend fun isUserMemberOfGroup(userId: String, groupId: String, requestContext: com.graphqlcheckmate.config.RequestContext): Boolean {
         return memberships[Pair(userId, groupId)] ?: false
     }
 }
@@ -60,10 +62,13 @@ class GroupMembershipPolicyCheckTest : FunSpec({
     val testUserId = "user-123"
     val testGroupId = "group-456"
     val anotherGroupId = "group-789"
+    val supabaseUrl = "http://localhost:54321"
+    val supabaseKey = "test-key"
 
     lateinit var groupService: FakeGroupService
     lateinit var policyExecutor: GroupMembershipPolicyExecutor
     lateinit var mockContext: EngineExecutionContext
+    lateinit var requestContextWrapper: com.graphqlcheckmate.config.RequestContext
 
     beforeEach {
         // Use FakeSupabaseService instead of MockK due to Byte Buddy / Java 21 issues
@@ -80,13 +85,43 @@ class GroupMembershipPolicyCheckTest : FunSpec({
             groupService = groupService
         )
 
-        // Mock execution context with user ID
-        mockContext = mockk<EngineExecutionContext>(relaxed = true)
-        every { mockContext.requestContext } returns GraphQLRequestContext(
+        // Setup Koin if not already started
+        try {
+            startKoin {
+                modules(appModule(supabaseUrl, supabaseKey))
+            }
+        } catch (e: Exception) {
+            // Already started
+        }
+
+        // Create the GraphQLRequestContext
+        val graphQLContext = GraphQLRequestContext(
             userId = testUserId,
             accessToken = "test-token",
             isAdmin = false
         )
+
+        // Create a mock authenticated client
+        val mockClient = fakeSupabaseService.getAuthenticatedClient(null)
+
+        // Create RequestContext with both dependencies
+        requestContextWrapper = com.graphqlcheckmate.config.RequestContext(
+            graphQLContext = graphQLContext,
+            authenticatedClient = mockClient
+        )
+
+        // Mock execution context with the wrapped context
+        mockContext = mockk<EngineExecutionContext>(relaxed = true)
+        every { mockContext.requestContext } returns requestContextWrapper
+    }
+
+    afterEach {
+        // No cleanup needed - RequestContext is now a simple data class
+        // Koin automatically handles scope lifecycle
+    }
+
+    afterSpec {
+        stopKoin()
     }
 
     test("should grant access when user is a member of the group") {

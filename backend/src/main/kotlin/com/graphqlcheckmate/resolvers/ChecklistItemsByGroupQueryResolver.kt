@@ -1,5 +1,6 @@
 package com.graphqlcheckmate.resolvers
 
+import com.graphqlcheckmate.config.RequestContext
 import com.graphqlcheckmate.resolvers.resolverbases.QueryResolvers
 import com.graphqlcheckmate.services.GroupService
 import viaduct.api.Resolver
@@ -21,7 +22,8 @@ class ChecklistItemsByGroupQueryResolver(
         val decoded = String(Base64.getDecoder().decode(globalIdString))
         val groupId = decoded.substringAfter(":")
 
-        val client = groupService.supabaseService.getAuthenticatedClient(ctx.requestContext)
+        val requestContext = ctx.requestContext as RequestContext
+        val client = requestContext.authenticatedClient
         val itemEntities = client.getChecklistItemsByGroup(groupId)
 
         return itemEntities.map { entity ->

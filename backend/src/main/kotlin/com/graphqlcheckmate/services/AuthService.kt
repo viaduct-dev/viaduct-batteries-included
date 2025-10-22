@@ -3,7 +3,7 @@ package com.graphqlcheckmate.services
 import com.graphqlcheckmate.AuthenticatedSupabaseClient
 import com.graphqlcheckmate.GraphQLRequestContext
 import com.graphqlcheckmate.SupabaseService
-import io.github.jan.supabase.gotrue.user.UserInfo
+import io.github.jan.supabase.auth.user.UserInfo
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.Json

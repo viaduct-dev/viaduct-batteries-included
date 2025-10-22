@@ -1,9 +1,9 @@
 package com.graphqlcheckmate
 
 import io.github.jan.supabase.createSupabaseClient
-import io.github.jan.supabase.gotrue.Auth
-import io.github.jan.supabase.gotrue.auth
-import io.github.jan.supabase.gotrue.providers.builtin.Email
+import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.providers.builtin.Email
 import io.kotest.assertions.json.shouldContainJsonKey
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe

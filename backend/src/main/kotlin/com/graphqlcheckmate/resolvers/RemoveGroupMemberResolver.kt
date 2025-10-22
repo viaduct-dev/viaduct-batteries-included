@@ -1,5 +1,6 @@
 package com.graphqlcheckmate.resolvers
 
+import com.graphqlcheckmate.config.RequestContext
 import com.graphqlcheckmate.resolvers.resolverbases.MutationResolvers
 import com.graphqlcheckmate.services.GroupService
 import viaduct.api.Resolver
@@ -20,9 +21,9 @@ class RemoveGroupMemberResolver(
         val decoded = String(Base64.getDecoder().decode(input.groupId))
         val groupId = decoded.substringAfter(":")
 
-        val client = groupService.supabaseService.getAuthenticatedClient(ctx.requestContext)
+        val requestContext = ctx.requestContext as RequestContext
         return groupService.removeGroupMember(
-            client = client,
+            requestContext = requestContext,
             groupId = groupId,
             userId = input.userId
         )

@@ -1,6 +1,6 @@
 package com.graphqlcheckmate.resolvers
 
-import com.graphqlcheckmate.GraphQLRequestContext
+import com.graphqlcheckmate.config.RequestContext
 import com.graphqlcheckmate.resolvers.resolverbases.MutationResolvers
 import com.graphqlcheckmate.services.GroupService
 import viaduct.api.Resolver
@@ -18,13 +18,18 @@ class CreateChecklistItemResolver(
 ) : MutationResolvers.CreateChecklistItem() {
     override suspend fun resolve(ctx: Context): ChecklistItem {
         val input = ctx.arguments.input
-        val requestContext = ctx.requestContext as GraphQLRequestContext
-        val userId = requestContext.userId
+
+        // Extract the request context
+        val requestContext = ctx.requestContext as RequestContext
+
+        // Get the user ID from the GraphQL context
+        val userId = requestContext.graphQLContext.userId
+
         // Decode the GlobalID to get the internal UUID
         val decoded = String(Base64.getDecoder().decode(input.groupId))
         val groupId = decoded.substringAfter(":")
 
-        val client = groupService.supabaseService.getAuthenticatedClient(ctx.requestContext)
+        val client = requestContext.authenticatedClient
         val itemEntity = client.createChecklistItem(
             title = input.title,
             userId = userId,

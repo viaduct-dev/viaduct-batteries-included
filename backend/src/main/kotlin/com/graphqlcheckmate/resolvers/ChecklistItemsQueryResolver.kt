@@ -1,5 +1,6 @@
 package com.graphqlcheckmate.resolvers
 
+import com.graphqlcheckmate.config.RequestContext
 import com.graphqlcheckmate.resolvers.resolverbases.QueryResolvers
 import com.graphqlcheckmate.services.GroupService
 import viaduct.api.Resolver
@@ -14,7 +15,11 @@ class ChecklistItemsQueryResolver(
     private val groupService: GroupService
 ) : QueryResolvers.ChecklistItems() {
     override suspend fun resolve(ctx: Context): List<ChecklistItem> {
-        val client = groupService.supabaseService.getAuthenticatedClient(ctx.requestContext)
+        // Extract the request context
+        val requestContext = ctx.requestContext as RequestContext
+
+        // Get the authenticated client from the request context
+        val client = requestContext.authenticatedClient
         val itemEntities = client.getChecklistItems()
 
         return itemEntities.map { entity ->

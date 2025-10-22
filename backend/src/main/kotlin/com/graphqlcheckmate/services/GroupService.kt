@@ -2,6 +2,7 @@ package com.graphqlcheckmate.services
 
 import com.graphqlcheckmate.AuthenticatedSupabaseClient
 import com.graphqlcheckmate.SupabaseService
+import com.graphqlcheckmate.config.RequestContext
 import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -53,25 +54,25 @@ open class GroupService(
     /**
      * Check if a user is a member of a specific group.
      * This is called by the policy executor to enforce per-row access control.
-     * Uses an authenticated client to respect RLS policies.
+     * Uses an authenticated client from the request context to respect RLS policies.
      */
-    open suspend fun isUserMemberOfGroup(userId: String, groupId: String, client: AuthenticatedSupabaseClient): Boolean {
-        val members = client.getGroupMembers(groupId)
+    open suspend fun isUserMemberOfGroup(userId: String, groupId: String, requestContext: RequestContext): Boolean {
+        val members = requestContext.authenticatedClient.getGroupMembers(groupId)
         return members.any { it.user_id == userId }
     }
 
     /**
      * Get all groups that a user is a member of.
      */
-    suspend fun getUserGroups(client: AuthenticatedSupabaseClient): List<CheckboxGroupEntity> {
-        return client.getCheckboxGroups()
+    suspend fun getUserGroups(requestContext: RequestContext): List<CheckboxGroupEntity> {
+        return requestContext.authenticatedClient.getCheckboxGroups()
     }
 
     /**
      * Get a specific group by ID.
      */
-    suspend fun getGroupById(client: AuthenticatedSupabaseClient, groupId: String): CheckboxGroupEntity? {
-        return client.getCheckboxGroupById(groupId)
+    suspend fun getGroupById(requestContext: RequestContext, groupId: String): CheckboxGroupEntity? {
+        return requestContext.authenticatedClient.getCheckboxGroupById(groupId)
     }
 
     /**
@@ -79,40 +80,40 @@ open class GroupService(
      * The creator is automatically added as a member via database trigger.
      */
     suspend fun createGroup(
-        client: AuthenticatedSupabaseClient,
+        requestContext: RequestContext,
         name: String,
         description: String?,
         ownerId: String
     ): CheckboxGroupEntity {
-        return client.createCheckboxGroup(name, description, ownerId)
+        return requestContext.authenticatedClient.createCheckboxGroup(name, description, ownerId)
     }
 
     /**
      * Get all members of a group.
      */
-    suspend fun getGroupMembers(client: AuthenticatedSupabaseClient, groupId: String): List<GroupMemberEntity> {
-        return client.getGroupMembers(groupId)
+    suspend fun getGroupMembers(requestContext: RequestContext, groupId: String): List<GroupMemberEntity> {
+        return requestContext.authenticatedClient.getGroupMembers(groupId)
     }
 
     /**
      * Add a member to a group.
      */
     suspend fun addGroupMember(
-        client: AuthenticatedSupabaseClient,
+        requestContext: RequestContext,
         groupId: String,
         userId: String
     ): GroupMemberEntity {
-        return client.addGroupMember(groupId, userId)
+        return requestContext.authenticatedClient.addGroupMember(groupId, userId)
     }
 
     /**
      * Remove a member from a group.
      */
     suspend fun removeGroupMember(
-        client: AuthenticatedSupabaseClient,
+        requestContext: RequestContext,
         groupId: String,
         userId: String
     ): Boolean {
-        return client.removeGroupMember(groupId, userId)
+        return requestContext.authenticatedClient.removeGroupMember(groupId, userId)
     }
 }

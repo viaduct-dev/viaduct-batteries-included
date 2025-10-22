@@ -1,6 +1,7 @@
 package com.graphqlcheckmate.resolvers
 
 import viaduct.api.grts.User
+import com.graphqlcheckmate.config.RequestContext
 import com.graphqlcheckmate.resolvers.resolverbases.QueryResolvers
 import com.graphqlcheckmate.services.UserService
 import viaduct.api.Resolver
@@ -13,7 +14,8 @@ class SearchUsersQueryResolver(
 ) : QueryResolvers.SearchUsers() {
     override suspend fun resolve(ctx: Context): List<User> {
         val query = ctx.arguments.query
-        val userEntities = userService.searchUsers(ctx.requestContext, query)
+        val requestContext = ctx.requestContext as RequestContext
+        val userEntities = userService.searchUsers(requestContext, query)
 
         return userEntities.map { entity ->
             // Extract is_admin from raw_app_meta_data

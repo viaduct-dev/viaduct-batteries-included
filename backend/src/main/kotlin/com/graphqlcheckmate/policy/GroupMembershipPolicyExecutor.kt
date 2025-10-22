@@ -1,6 +1,7 @@
 package com.graphqlcheckmate.policy
 
 import com.graphqlcheckmate.GraphQLRequestContext
+import com.graphqlcheckmate.config.RequestContext
 import com.graphqlcheckmate.services.GroupService
 import viaduct.api.globalid.GlobalID
 import viaduct.engine.api.CheckerExecutor
@@ -34,13 +35,14 @@ class GroupMembershipPolicyExecutor(
         objectDataMap: Map<String, EngineObjectData>,
         context: EngineExecutionContext
     ): CheckerResult {
-        // Extract the request context containing user information
-        val requestContext = context.requestContext as? GraphQLRequestContext
+        // Extract the RequestContext from the engine context
+        val requestContext = context.requestContext as? RequestContext
             ?: return GroupMembershipErrorResult(
                 RuntimeException("Authentication required: request context not found")
             )
 
-        val userId = requestContext.userId
+        // Get the user ID from the GraphQL context
+        val userId = requestContext.graphQLContext.userId
 
         // Get the object data (empty string key means current object)
         val objectData = objectDataMap[""]
@@ -92,14 +94,8 @@ class GroupMembershipPolicyExecutor(
 
                 if (internalItemId != null) {
                     // Fetch the item to get its groupId
-                    val requestContext = context.requestContext as? GraphQLRequestContext
-                        ?: return GroupMembershipErrorResult(
-                            RuntimeException("Authentication required: request context not found")
-                        )
-                    val client = groupService.supabaseService.getAuthenticatedClient(requestContext)
-
                     val item = try {
-                        client.getChecklistItemById(internalItemId)
+                        requestContext.authenticatedClient.getChecklistItemById(internalItemId)
                     } catch (e: Exception) {
                         return GroupMembershipErrorResult(
                             RuntimeException("Failed to fetch item for authorization check: ${e.message}", e)
@@ -143,13 +139,12 @@ class GroupMembershipPolicyExecutor(
 
     private suspend fun checkGroupMembership(userId: String, groupId: String, context: EngineExecutionContext): CheckerResult {
         val isMember = try {
-            // Get authenticated client from context to respect RLS policies
-            val requestContext = context.requestContext as? GraphQLRequestContext
+            // Get the RequestContext from the engine context
+            val requestContext = context.requestContext as? RequestContext
                 ?: return GroupMembershipErrorResult(
                     RuntimeException("Authentication required: request context not found")
                 )
-            val client = groupService.supabaseService.getAuthenticatedClient(requestContext)
-            groupService.isUserMemberOfGroup(userId, groupId, client)
+            groupService.isUserMemberOfGroup(userId, groupId, requestContext)
         } catch (e: Exception) {
             return GroupMembershipErrorResult(
                 RuntimeException("Failed to check group membership: ${e.message}", e)

@@ -2,7 +2,7 @@ plugins {
     alias(libs.plugins.kotlinJvm)
     alias(libs.plugins.viaduct.application)
     alias(libs.plugins.viaduct.module)
-    kotlin("plugin.serialization") version "1.9.24"
+    kotlin("plugin.serialization") version "2.1.0"
     application
 }
 
@@ -18,12 +18,12 @@ dependencies {
     // Viaduct service-wiring for CheckerExecutorFactory registration
     implementation(libs.viaduct.service.wiring)
 
-    // Ktor server
-    implementation("io.ktor:ktor-server-core:2.3.7")
-    implementation("io.ktor:ktor-server-netty:2.3.7")
-    implementation("io.ktor:ktor-server-content-negotiation:2.3.7")
-    implementation("io.ktor:ktor-serialization-jackson:2.3.7")
-    implementation("io.ktor:ktor-server-cors:2.3.7")
+    // Ktor server (upgraded to 3.2.0 for Koin 4.x compatibility)
+    implementation("io.ktor:ktor-server-core:3.2.0")
+    implementation("io.ktor:ktor-server-netty:3.2.0")
+    implementation("io.ktor:ktor-server-content-negotiation:3.2.0")
+    implementation("io.ktor:ktor-serialization-jackson:3.2.0")
+    implementation("io.ktor:ktor-server-cors:3.2.0")
 
     // Kotlin and coroutines
     implementation(libs.kotlin.reflect)
@@ -35,19 +35,21 @@ dependencies {
     // Logging
     implementation("ch.qos.logback:logback-classic:1.4.11")
 
-    // Koin for dependency injection
-    implementation("io.insert-koin:koin-core:3.5.3")
-    implementation("io.insert-koin:koin-ktor:3.5.3")
+    // Koin for dependency injection (upgraded to 4.1.1)
+    implementation("io.insert-koin:koin-core:4.1.1")
+    implementation("io.insert-koin:koin-ktor:4.1.1")
+    implementation("io.insert-koin:koin-logger-slf4j:4.1.1")
 
-    // Supabase Kotlin client
-    implementation(libs.supabase.postgrest.kt)
-    implementation(libs.supabase.auth.kt)
+    // Supabase Kotlin client (version 3.x uses BOM)
+    implementation(platform("io.github.jan-tennert.supabase:bom:3.2.5"))
+    implementation("io.github.jan-tennert.supabase:postgrest-kt")
+    implementation("io.github.jan-tennert.supabase:auth-kt")
     implementation(libs.ktor.client.cio)
     implementation(libs.java.jwt)
 
-    // Ktor test dependencies
-    testImplementation("io.ktor:ktor-server-test-host:2.3.7")
-    testImplementation("io.ktor:ktor-client-content-negotiation:2.3.7")
+    // Ktor test dependencies (upgraded to 3.2.0)
+    testImplementation("io.ktor:ktor-server-test-host:3.2.0")
+    testImplementation("io.ktor:ktor-client-content-negotiation:3.2.0")
 
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)

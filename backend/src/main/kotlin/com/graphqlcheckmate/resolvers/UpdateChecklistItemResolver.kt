@@ -1,5 +1,6 @@
 package com.graphqlcheckmate.resolvers
 
+import com.graphqlcheckmate.config.RequestContext
 import com.graphqlcheckmate.resolvers.resolverbases.MutationResolvers
 import com.graphqlcheckmate.services.GroupService
 import viaduct.api.Resolver
@@ -21,7 +22,8 @@ class UpdateChecklistItemResolver(
         val decoded = String(Base64.getDecoder().decode(input.id))
         val itemId = decoded.substringAfter(":")
 
-        val client = groupService.supabaseService.getAuthenticatedClient(ctx.requestContext)
+        val requestContext = ctx.requestContext as RequestContext
+        val client = requestContext.authenticatedClient
 
         // Authorization is checked by Viaduct policy executor before this resolver runs
         // The @requiresGroupMembership directive on the mutation ensures only group members can update
