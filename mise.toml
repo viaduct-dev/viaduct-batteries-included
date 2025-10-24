@@ -5,7 +5,17 @@ podman = "latest"
 
 [env]
 # Podman configuration
-DOCKER_HOST = "unix:///tmp/podman/podman-machine-default-api.sock"
+# DOCKER_HOST is dynamically detected from podman machine inspect
+# If not set, falls back to common default path
+_.source = """
+# Dynamically detect Podman socket path
+PODMAN_SOCKET=$(podman machine inspect podman-machine-default 2>/dev/null | grep -o '/tmp/podman/[^"]*api.sock' | head -1)
+if [ -z "$PODMAN_SOCKET" ]; then
+  # Fallback to default path if detection fails
+  PODMAN_SOCKET="/tmp/podman/podman-machine-default-api.sock"
+fi
+export DOCKER_HOST="unix://${PODMAN_SOCKET}"
+"""
 
 # Backend environment (Viaduct/Kotlin)
 SUPABASE_URL = "http://127.0.0.1:54321"
@@ -20,7 +30,17 @@ VITE_SUPABASE_PROJECT_ID = "mgmfegesdvielbmhixcz"
 # Dependency startup tasks
 [tasks.podman-start]
 description = "Start Podman machine"
-run = "podman machine start || echo 'Podman already running'"
+run = """
+# Start podman machine if not running
+podman machine start 2>&1 || echo 'Podman already running'
+# Verify socket is accessible
+if ! podman info >/dev/null 2>&1; then
+  echo "WARNING: Podman socket not accessible. Checking connections..."
+  podman system connection list
+  echo "Waiting for socket to be ready..."
+  sleep 2
+fi
+"""
 
 [tasks.supabase-start]
 description = "Start local Supabase"
@@ -108,6 +128,35 @@ run = """
 echo "=== Podman Status ==="
 podman machine list
 echo ""
+echo "=== Podman Connection Info ==="
+podman system connection list
+echo ""
 echo "=== Supabase Status ==="
 supabase status
+"""
+
+[tasks.diagnose-podman]
+description = "Diagnose Podman socket configuration"
+run = """
+echo "=== Podman Machine Info ==="
+podman machine list
+echo ""
+echo "=== Podman Connection Info ==="
+podman system connection list
+echo ""
+echo "=== Checking Socket Paths ==="
+if [ -d /tmp/podman ]; then
+  echo "Found /tmp/podman directory:"
+  ls -la /tmp/podman/*.sock 2>/dev/null || echo "No sockets found in /tmp/podman"
+else
+  echo "/tmp/podman directory not found"
+fi
+echo ""
+echo "=== Podman Info (checking connectivity) ==="
+if podman info >/dev/null 2>&1; then
+  echo "✓ Podman is accessible"
+  podman info --format json | grep -E "(remoteSocket|host)" | head -5
+else
+  echo "✗ Cannot connect to Podman"
+fi
 """
