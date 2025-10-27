@@ -3,9 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { UserList } from "@/components/UserList";
-import { GroupManager } from "@/components/GroupManager";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 import { LogOut, Shield } from "lucide-react";
 
 const Index = () => {
@@ -61,7 +59,7 @@ const Index = () => {
             </div>
             <div>
               <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-                GraphQL Base App
+                GraphQL Policy Framework
               </h1>
               {isAdmin && (
                 <div className="flex items-center gap-1 text-xs text-primary font-medium mt-1">
@@ -83,7 +81,23 @@ const Index = () => {
 
         {isAdmin && <UserList />}
 
-        <GroupManager />
+        <div className="bg-card rounded-lg border p-6 space-y-4">
+          <h2 className="text-xl font-semibold">Welcome to the GraphQL Policy Framework</h2>
+          <p className="text-muted-foreground">
+            This is a generic policy checker framework with group-based access control.
+            The checklist functionality has been moved to examples to serve as a reference implementation.
+          </p>
+          <div className="space-y-2">
+            <h3 className="font-medium">To implement your own resource:</h3>
+            <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1 ml-4">
+              <li>See <code className="bg-muted px-1 py-0.5 rounded">backend/src/main/kotlin/com/graphqlcheckmate/examples/checklist/</code></li>
+              <li>See <code className="bg-muted px-1 py-0.5 rounded">backend/src/main/viaduct/schema/examples/checklist/</code></li>
+              <li>See <code className="bg-muted px-1 py-0.5 rounded">supabase/migrations/examples/checklist/</code></li>
+              <li>See <code className="bg-muted px-1 py-0.5 rounded">src/components/examples/checklist/</code></li>
+              <li>Read <code className="bg-muted px-1 py-0.5 rounded">docs/IMPLEMENTING_A_RESOURCE.md</code></li>
+            </ul>
+          </div>
+        </div>
 
         <p className="text-center text-sm text-muted-foreground">
           Powered by GraphQL • {session.user.email}

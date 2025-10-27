@@ -66,6 +66,9 @@ application {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+
+    // Exclude example tests (commented out code)
+    exclude("**/examples/**")
 }
 
 tasks.withType<JavaExec> {

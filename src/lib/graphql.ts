@@ -7,6 +7,15 @@ interface GraphQLResponse<T> {
 
 const GRAPHQL_ENDPOINT = import.meta.env.VITE_GRAPHQL_ENDPOINT || "http://localhost:8080/graphql";
 
+/**
+ * Execute a GraphQL query or mutation against the Viaduct backend.
+ * Automatically includes authentication headers from Supabase session.
+ *
+ * @param query - GraphQL query or mutation string
+ * @param variables - Variables for the GraphQL operation
+ * @returns Parsed response data
+ * @throws Error if not authenticated or request fails
+ */
 export async function executeGraphQL<T>(query: string, variables?: Record<string, any>): Promise<T> {
   // Wait for session to be available, with retries for initialization timing
   let session = null;
@@ -82,7 +91,15 @@ export async function executeGraphQL<T>(query: string, variables?: Record<string
   return result.data as T;
 }
 
-// GraphQL queries and mutations for user management
+// ============================================================================
+// CORE FRAMEWORK QUERIES & MUTATIONS
+// These are part of the framework and should remain active
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// User Management (Admin Only)
+// ----------------------------------------------------------------------------
+
 export const SET_USER_ADMIN = `
   mutation SetUserAdmin($userId: String!, $isAdmin: Boolean!) {
     setUserAdmin(input: {
@@ -111,9 +128,23 @@ export const DELETE_USER = `
   }
 `;
 
-// GraphQL queries and mutations for groups and checklists
-export const GET_CHECKBOX_GROUPS = `
-  query GetCheckboxGroups {
+export const SEARCH_USERS = `
+  query SearchUsers($query: String!) {
+    searchUsers(query: $query) {
+      id
+      email
+      isAdmin
+      createdAt
+    }
+  }
+`;
+
+// ----------------------------------------------------------------------------
+// Group Management (Core Framework)
+// ----------------------------------------------------------------------------
+
+export const GET_GROUPS = `
+  query GetGroups {
     checkboxGroups {
       id
       name
@@ -129,8 +160,8 @@ export const GET_CHECKBOX_GROUPS = `
   }
 `;
 
-export const GET_CHECKBOX_GROUP = `
-  query GetCheckboxGroup($id: ID!) {
+export const GET_GROUP = `
+  query GetGroup($id: ID!) {
     checkboxGroup(id: $id) {
       id
       name
@@ -142,20 +173,12 @@ export const GET_CHECKBOX_GROUP = `
         userId
         joinedAt
       }
-      checklistItems {
-        id
-        title
-        completed
-        userId
-        groupId
-        createdAt
-      }
     }
   }
 `;
 
-export const CREATE_CHECKBOX_GROUP = `
-  mutation CreateCheckboxGroup($name: String!, $description: String) {
+export const CREATE_GROUP = `
+  mutation CreateGroup($name: String!, $description: String) {
     createCheckboxGroup(input: {
       name: $name
       description: $description
@@ -183,65 +206,11 @@ export const ADD_GROUP_MEMBER = `
   }
 `;
 
-export const CREATE_CHECKLIST_ITEM = `
-  mutation CreateChecklistItem($title: String!, $groupId: ID!) {
-    createChecklistItem(input: {
-      title: $title
+export const REMOVE_GROUP_MEMBER = `
+  mutation RemoveGroupMember($groupId: ID!, $userId: String!) {
+    removeGroupMember(input: {
       groupId: $groupId
-    }) {
-      id
-      title
-      completed
-      userId
-      groupId
-      createdAt
-    }
-  }
-`;
-
-export const UPDATE_CHECKLIST_ITEM = `
-  mutation UpdateChecklistItem($id: ID!, $completed: Boolean, $title: String) {
-    updateChecklistItem(input: {
-      id: $id
-      completed: $completed
-      title: $title
-    }) {
-      id
-      title
-      completed
-      updatedAt
-    }
-  }
-`;
-
-export const GET_CHECKLIST_ITEMS = `
-  query GetChecklistItems {
-    checklistItems {
-      id
-      title
-      completed
-      userId
-      groupId
-      createdAt
-    }
-  }
-`;
-
-export const DELETE_CHECKLIST_ITEM = `
-  mutation DeleteChecklistItem($id: ID!) {
-    deleteChecklistItem(input: {
-      id: $id
+      userId: $userId
     })
-  }
-`;
-
-export const SEARCH_USERS = `
-  query SearchUsers($query: String!) {
-    searchUsers(query: $query) {
-      id
-      email
-      isAdmin
-      createdAt
-    }
   }
 `;

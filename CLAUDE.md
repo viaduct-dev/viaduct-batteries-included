@@ -146,7 +146,8 @@ All required environment variables are automatically managed by mise via `mise.t
 - `VITE_GRAPHQL_ENDPOINT`: Defaults to `http://localhost:8080/graphql` if not set
 
 **Infrastructure:**
-- `DOCKER_HOST`: Podman socket location
+- `DOCKER_HOST`: Dynamically detected from Podman machine configuration
+- The socket path is auto-detected at runtime, making the project portable across different machines
 
 No manual exports needed - mise activates these automatically when you `cd` into the project directory.
 
@@ -266,10 +267,28 @@ The backend uses Viaduct's modular architecture:
 3. Verify `VITE_GRAPHQL_ENDPOINT` environment variable
 
 ### Podman issues
+
+**Socket not found errors:**
+If Supabase can't find the Podman socket, run the diagnostic:
 ```bash
+mise run diagnose-podman
+```
+
+Common fixes:
+```bash
+# Restart Podman machine
+podman machine stop
+podman machine start
+
+# If machine doesn't exist, initialize it
 podman machine init
 podman machine start
+
+# Verify connection
+podman info
 ```
+
+The project now auto-detects the Podman socket location, so it should work across different machines without manual configuration.
 
 ### Database reset needed
 ```bash

@@ -1,3 +1,96 @@
+// EXAMPLE: Group Manager Component with Checklist Items
+//
+// This component demonstrates a complete implementation of a resource management
+// UI that integrates with the framework's group-based access control system.
+//
+// KEY CONCEPTS DEMONSTRATED:
+// 1. Group Management
+//    - Listing all groups user is a member of
+//    - Creating new groups
+//    - Adding members to groups via user search
+//    - Displaying group members and ownership
+//
+// 2. Resource Management (Checklist Items)
+//    - Creating resources within groups
+//    - Listing resources grouped by group
+//    - Updating resource state (toggle completion)
+//    - Deleting resources
+//
+// 3. State Management
+//    - React useState for local state
+//    - useEffect for data fetching
+//    - Optimistic UI updates
+//    - Error handling with toast notifications
+//
+// 4. UI Patterns
+//    - Dialog modals for create operations
+//    - Inline forms for quick actions
+//    - Loading states and disabled buttons
+//    - Responsive card-based layout
+//
+// 5. Authentication Integration
+//    - Supabase session for current user
+//    - Permission checks (is owner vs member)
+//    - User search functionality
+//
+// 6. GraphQL Integration
+//    - executeGraphQL for all backend communication
+//    - Type-safe query/mutation execution
+//    - Error handling and retry logic
+//
+// TO USE THIS EXAMPLE:
+// 1. Copy to src/components/
+// 2. Rename to YourResourceManager.tsx
+// 3. Uncomment the code below
+// 4. Update imports to use your resource queries
+// 5. Customize interfaces for your resource type
+// 6. Update UI components for your resource fields
+// 7. Modify create/update/delete logic for your needs
+//
+// PREREQUISITES:
+// - GraphQL queries defined (see src/lib/examples/checklist-queries.ts.example)
+// - Backend resolvers implemented
+// - Database tables created with RLS policies
+// - shadcn/ui components installed
+// - React hooks (useState, useEffect) available
+//
+// COMPONENT STRUCTURE:
+// - State declarations (groups, items, dialogs, forms)
+// - Data fetching (useEffect for initial load)
+// - Event handlers (create, update, delete, search)
+// - Helper functions (decoding GlobalIDs, finding groups)
+// - Render methods (groups list, items list, dialogs)
+//
+// RELATED FILES:
+// - Queries: src/lib/examples/checklist-queries.ts.example
+// - Schema: backend/src/main/viaduct/schema/examples/checklist/ChecklistItem.graphqls.example
+// - Resolvers: backend/src/main/kotlin/com/graphqlcheckmate/examples/checklist/resolvers/
+//
+// UI LIBRARIES USED:
+// - shadcn/ui: Button, Card, Dialog, Input, Label, Textarea, Checkbox
+// - lucide-react: Icons (Users, Plus, UserPlus, Trash2)
+// - Custom hooks: useToast for notifications
+//
+// PERFORMANCE CONSIDERATIONS:
+// - Consider pagination for large lists of groups/items
+// - Implement debouncing for search input
+// - Use React Query or SWR for caching and auto-refetch
+// - Add loading skeletons for better UX
+// - Implement virtual scrolling for very long lists
+//
+// ACCESSIBILITY:
+// - All interactive elements have proper ARIA labels
+// - Keyboard navigation supported via shadcn/ui
+// - Focus management in dialogs
+// - Screen reader friendly
+//
+// SECURITY:
+// - All operations require authentication
+// - Group membership enforced by backend RLS
+// - UI hides actions user isn't authorized for
+// - Errors displayed for unauthorized operations
+
+/*
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -532,3 +625,4 @@ export function GroupManager() {
     </div>
   );
 }
+*/

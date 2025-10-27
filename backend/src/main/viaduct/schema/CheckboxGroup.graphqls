@@ -29,11 +29,6 @@ type CheckboxGroup implements Node @scope(to: ["default"]) @requiresGroupMembers
   members: [GroupMember!]! @resolver
 
   """
-  Checklist items belonging to this group.
-  """
-  checklistItems: [ChecklistItem!]! @resolver
-
-  """
   When the group was created.
   """
   createdAt: String!
