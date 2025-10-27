@@ -76,17 +76,17 @@ fun appModule(supabaseUrl: String, supabaseKey: String) = module {
     singleOf(::SearchUsersQueryResolver)
     singleOf(::DeleteUserResolver)
 
-    // Resolvers - CheckboxGroup Queries
-    singleOf(::CheckboxGroupsQueryResolver)
-    singleOf(::CheckboxGroupQueryResolver)
+    // Resolvers - Group Queries
+    singleOf(::GroupsQueryResolver)
+    singleOf(::GroupQueryResolver)
 
-    // Resolvers - CheckboxGroup Mutations
-    singleOf(::CreateCheckboxGroupResolver)
+    // Resolvers - Group Mutations
+    singleOf(::CreateGroupResolver)
     singleOf(::AddGroupMemberResolver)
     singleOf(::RemoveGroupMemberResolver)
 
-    // Resolvers - CheckboxGroup Fields
-    singleOf(::CheckboxGroupMembersResolver)
+    // Resolvers - Group Fields
+    singleOf(::GroupMembersResolver)
     // Note: ChecklistItem resolvers moved to examples
     // See: backend/src/main/kotlin/com/graphqlcheckmate/examples/checklist/resolvers/
 }

@@ -3,18 +3,18 @@ package com.graphqlcheckmate.resolvers
 import com.graphqlcheckmate.resolvers.resolverbases.MutationResolvers
 import com.graphqlcheckmate.services.GroupService
 import viaduct.api.Resolver
-import viaduct.api.grts.CheckboxGroup
+import viaduct.api.grts.Group
 
 /**
- * Resolver for the createCheckboxGroup mutation.
- * Creates a new checkbox group with the authenticated user as the owner.
+ * Resolver for the createGroup mutation.
+ * Creates a new group with the authenticated user as the owner.
  * The owner is automatically added as a member via database trigger.
  */
 @Resolver
-class CreateCheckboxGroupResolver(
+class CreateGroupResolver(
     private val groupService: GroupService
-) : MutationResolvers.CreateCheckboxGroup() {
-    override suspend fun resolve(ctx: Context): CheckboxGroup {
+) : MutationResolvers.CreateGroup() {
+    override suspend fun resolve(ctx: Context): Group {
         val input = ctx.arguments.input
         val userId = ctx.userId
 
@@ -25,8 +25,8 @@ class CreateCheckboxGroupResolver(
             ownerId = userId
         )
 
-        return CheckboxGroup.Builder(ctx)
-            .id(ctx.globalIDFor(CheckboxGroup.Reflection, groupEntity.id))
+        return Group.Builder(ctx)
+            .id(ctx.globalIDFor(Group.Reflection, groupEntity.id))
             .name(groupEntity.name)
             .description(groupEntity.description)
             .ownerId(groupEntity.owner_id)

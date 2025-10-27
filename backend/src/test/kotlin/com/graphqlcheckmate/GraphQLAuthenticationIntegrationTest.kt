@@ -100,7 +100,7 @@ class GraphQLAuthenticationIntegrationTest : FunSpec({
                 contentType(ContentType.Application.Json)
                 setBody("""
                     {
-                        "query": "{ checkboxGroups { id name } }"
+                        "query": "{ groups { id name } }"
                     }
                 """.trimIndent())
             }
@@ -118,7 +118,7 @@ class GraphQLAuthenticationIntegrationTest : FunSpec({
                 header(HttpHeaders.Authorization, "Bearer invalid-token-12345")
                 setBody("""
                     {
-                        "query": "{ checkboxGroups { id name } }"
+                        "query": "{ groups { id name } }"
                     }
                 """.trimIndent())
             }
@@ -138,7 +138,7 @@ class GraphQLAuthenticationIntegrationTest : FunSpec({
                 header(HttpHeaders.Authorization, "Bearer $accessToken")
                 setBody("""
                     {
-                        "query": "{ checkboxGroups { id name description } }"
+                        "query": "{ groups { id name description } }"
                     }
                 """.trimIndent())
             }
@@ -149,7 +149,7 @@ class GraphQLAuthenticationIntegrationTest : FunSpec({
 
             // Should have a data field (might be empty array, but should succeed)
             body shouldContainJsonKey "data"
-            body shouldContainJsonKey "data.checkboxGroups"
+            body shouldContainJsonKey "data.groups"
         }
     }
 
@@ -187,7 +187,7 @@ class GraphQLAuthenticationIntegrationTest : FunSpec({
                 header(HttpHeaders.Authorization, "Bearer $accessToken")
                 setBody("""
                     {
-                        "query": "mutation CreateGroup(${'$'}name: String!, ${'$'}description: String) { createCheckboxGroup(input: { name: ${'$'}name, description: ${'$'}description }) { id name description ownerId createdAt } }",
+                        "query": "mutation CreateGroup(${'$'}name: String!, ${'$'}description: String) { createGroup(input: { name: ${'$'}name, description: ${'$'}description }) { id name description ownerId createdAt } }",
                         "variables": {
                             "name": "Test Group from Integration Test",
                             "description": "Testing group creation with authentication"
@@ -200,8 +200,8 @@ class GraphQLAuthenticationIntegrationTest : FunSpec({
             println("Create group response: $groupBody")
 
             groupResponse.status shouldBe HttpStatusCode.OK
-            groupBody shouldContainJsonKey "data.createCheckboxGroup"
-            groupBody shouldContainJsonKey "data.createCheckboxGroup.id"
+            groupBody shouldContainJsonKey "data.createGroup"
+            groupBody shouldContainJsonKey "data.createGroup.id"
             groupBody shouldContain "Test Group from Integration Test"
         }
     }

@@ -1,20 +1,20 @@
 package com.graphqlcheckmate.resolvers
 
-import com.graphqlcheckmate.resolvers.resolverbases.CheckboxGroupResolvers
+import com.graphqlcheckmate.resolvers.resolverbases.GroupResolvers
 import com.graphqlcheckmate.services.GroupService
 import viaduct.api.Resolver
 import viaduct.api.grts.GroupMember
 
 /**
- * Field resolver for CheckboxGroup.members.
- * Returns all members of the checkbox group.
+ * Field resolver for Group.members.
+ * Returns all members of the group.
  */
-@Resolver(objectValueFragment = "fragment _ on CheckboxGroup { id }")
-class CheckboxGroupMembersResolver(
+@Resolver(objectValueFragment = "fragment _ on Group { id }")
+class GroupMembersResolver(
     private val groupService: GroupService
-) : CheckboxGroupResolvers.Members() {
+) : GroupResolvers.Members() {
     override suspend fun resolve(ctx: Context): List<GroupMember> {
-        // Access parent CheckboxGroup via objectValue
+        // Access parent Group via objectValue
         val groupId = ctx.objectValue.getId().internalID
 
         val memberEntities = groupService.getGroupMembers(ctx.authenticatedClient, groupId)

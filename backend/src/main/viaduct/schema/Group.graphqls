@@ -1,8 +1,9 @@
 """
-A checkbox group that contains checklist items.
-Users must be members of the group to access it.
+A group that contains resources and members.
+Users must be members of the group to access resources within it.
+This is a core framework concept for organizing access control.
 """
-type CheckboxGroup implements Node @scope(to: ["default"]) @requiresGroupMembership(groupIdField: "id") {
+type Group implements Node @scope(to: ["default"]) @requiresGroupMembership(groupIdField: "id") {
   """
   The unique identifier for the group.
   """
@@ -40,7 +41,7 @@ type CheckboxGroup implements Node @scope(to: ["default"]) @requiresGroupMembers
 }
 
 """
-Represents a user's membership in a checkbox group.
+Represents a user's membership in a group.
 """
 type GroupMember @scope(to: ["default"]) {
   """
@@ -65,9 +66,9 @@ type GroupMember @scope(to: ["default"]) {
 }
 
 """
-Input for creating a new checkbox group.
+Input for creating a new group.
 """
-input CreateCheckboxGroupInput @scope(to: ["default"]) {
+input CreateGroupInput @scope(to: ["default"]) {
   """
   The name of the group.
   """
@@ -86,7 +87,7 @@ input AddGroupMemberInput @scope(to: ["default"]) {
   """
   The ID of the group.
   """
-  groupId: ID! @idOf(type: "CheckboxGroup")
+  groupId: ID! @idOf(type: "Group")
 
   """
   The email or ID of the user to add.
@@ -101,7 +102,7 @@ input RemoveGroupMemberInput @scope(to: ["default"]) {
   """
   The ID of the group.
   """
-  groupId: ID! @idOf(type: "CheckboxGroup")
+  groupId: ID! @idOf(type: "Group")
 
   """
   The user ID to remove.
@@ -111,32 +112,32 @@ input RemoveGroupMemberInput @scope(to: ["default"]) {
 
 extend type Query @scope(to: ["default"]) {
   """
-  Get all checkbox groups the current user is a member of.
+  Get all groups the current user is a member of.
   """
-  checkboxGroups: [CheckboxGroup!]! @resolver
+  groups: [Group!]! @resolver
 
   """
-  Get a specific checkbox group by ID.
+  Get a specific group by ID.
   Only accessible if the user is a member.
   """
-  checkboxGroup(id: ID! @idOf(type: "CheckboxGroup")): CheckboxGroup @resolver
+  group(id: ID! @idOf(type: "Group")): Group @resolver
 }
 
 extend type Mutation @scope(to: ["default"]) {
   """
-  Create a new checkbox group.
-  The creator automatically becomes a member.
+  Create a new group.
+  The creator automatically becomes a member and owner.
   """
-  createCheckboxGroup(input: CreateCheckboxGroupInput!): CheckboxGroup! @resolver
+  createGroup(input: CreateGroupInput!): Group! @resolver
 
   """
-  Add a member to a checkbox group.
+  Add a member to a group.
   Only the group owner can add members.
   """
   addGroupMember(input: AddGroupMemberInput!): GroupMember! @resolver
 
   """
-  Remove a member from a checkbox group.
+  Remove a member from a group.
   The owner or the member themselves can remove the membership.
   """
   removeGroupMember(input: RemoveGroupMemberInput!): Boolean! @resolver

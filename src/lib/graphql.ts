@@ -145,7 +145,7 @@ export const SEARCH_USERS = `
 
 export const GET_GROUPS = `
   query GetGroups {
-    checkboxGroups {
+    groups {
       id
       name
       description
@@ -162,7 +162,7 @@ export const GET_GROUPS = `
 
 export const GET_GROUP = `
   query GetGroup($id: ID!) {
-    checkboxGroup(id: $id) {
+    group(id: $id) {
       id
       name
       description
@@ -179,7 +179,7 @@ export const GET_GROUP = `
 
 export const CREATE_GROUP = `
   mutation CreateGroup($name: String!, $description: String) {
-    createCheckboxGroup(input: {
+    createGroup(input: {
       name: $name
       description: $description
     }) {

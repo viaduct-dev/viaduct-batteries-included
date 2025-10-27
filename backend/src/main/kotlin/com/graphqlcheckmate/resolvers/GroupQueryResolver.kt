@@ -3,23 +3,23 @@ package com.graphqlcheckmate.resolvers
 import com.graphqlcheckmate.resolvers.resolverbases.QueryResolvers
 import com.graphqlcheckmate.services.GroupService
 import viaduct.api.Resolver
-import viaduct.api.grts.CheckboxGroup
+import viaduct.api.grts.Group
 
 /**
- * Resolver for the checkboxGroup query.
- * Returns a specific checkbox group by ID if the user is a member.
+ * Resolver for the group query.
+ * Returns a specific group by ID if the user is a member.
  */
 @Resolver
-class CheckboxGroupQueryResolver(
+class GroupQueryResolver(
     private val groupService: GroupService
-) : QueryResolvers.CheckboxGroup() {
-    override suspend fun resolve(ctx: Context): CheckboxGroup? {
+) : QueryResolvers.Group() {
+    override suspend fun resolve(ctx: Context): Group? {
         // Use Viaduct's internalID property to get the UUID
         val groupId = ctx.arguments.id.internalID
 
         val groupEntity = groupService.getGroupById(ctx.authenticatedClient, groupId) ?: return null
 
-        return CheckboxGroup.Builder(ctx)
+        return Group.Builder(ctx)
             .id(ctx.arguments.id)  // Reuse the GlobalID from arguments instead of regenerating
             .name(groupEntity.name)
             .description(groupEntity.description)
