@@ -5,6 +5,7 @@ import { Session } from "@supabase/supabase-js";
 import { UserList } from "@/components/UserList";
 import { Button } from "@/components/ui/button";
 import { LogOut, Shield } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const [session, setSession] = useState<Session | null>(null);
