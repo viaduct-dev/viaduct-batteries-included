@@ -23,8 +23,8 @@ val GraphQLAuthentication = createApplicationPlugin(
     val objectMapper = pluginConfig.objectMapper
 
     onCall { call ->
-        // Only apply authentication to GraphQL endpoints
-        if (!call.request.local.uri.startsWith("/graphql")) {
+        // Only apply authentication to GraphQL endpoints, but skip OPTIONS (CORS preflight)
+        if (!call.request.local.uri.startsWith("/graphql") || call.request.local.method == HttpMethod.Options) {
             return@onCall
         }
 
