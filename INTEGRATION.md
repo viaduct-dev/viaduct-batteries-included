@@ -58,7 +58,7 @@ export SUPABASE_ANON_KEY=your-anon-key
 ./gradlew bootRun
 ```
 
-The backend will start on http://localhost:8080 with GraphiQL available at http://localhost:8080/graphiql
+The backend will start on <http://localhost:8080> with GraphiQL available at <http://localhost:8080/graphiql>
 
 ### 2. Frontend Setup
 
@@ -153,7 +153,7 @@ npm run dev
 
 ### Testing GraphQL Queries
 
-Use GraphiQL at http://localhost:8080/graphiql to test queries:
+Use GraphiQL at <http://localhost:8080/graphiql> to test queries:
 
 ```graphql
 # Example: Get all items
@@ -167,24 +167,12 @@ query {
 
 # Example: Create item
 mutation {
-  createChecklistItem(input: {
-    title: "Test item"
-    userId: "user-uuid-here"
-  }) {
+  createChecklistItem(input: { title: "Test item", userId: "user-uuid-here" }) {
     id
     title
   }
 }
 ```
-
-## Future Enhancements
-
-1. **Authentication**: Add Spring Security for proper auth handling
-2. **CORS Configuration**: Configure CORS for production deployment
-3. **DataLoader**: Implement DataLoader pattern for more efficient batching
-4. **Subscriptions**: Add GraphQL subscriptions for real-time updates
-5. **Error Handling**: Enhanced error handling and validation
-6. **Testing**: Add integration tests for resolvers
 
 ## Resources
 
