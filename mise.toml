@@ -5,17 +5,9 @@ podman = "latest"
 
 [env]
 # Podman configuration
-# DOCKER_HOST is dynamically detected from podman machine inspect
-# If not set, falls back to common default path
-_.source = """
-# Dynamically detect Podman socket path
-PODMAN_SOCKET=$(podman machine inspect podman-machine-default 2>/dev/null | grep -o '/tmp/podman/[^"]*api.sock' | head -1)
-if [ -z "$PODMAN_SOCKET" ]; then
-  # Fallback to default path if detection fails
-  PODMAN_SOCKET="/tmp/podman/podman-machine-default-api.sock"
-fi
-export DOCKER_HOST="unix://${PODMAN_SOCKET}"
-"""
+# DOCKER_HOST is dynamically detected by .mise/scripts/setup-podman-env.sh
+# Each task that needs Podman access sources that script to set up the environment
+# This approach works across different machines, Podman versions, and socket locations
 
 # Backend environment (Viaduct/Kotlin)
 SUPABASE_URL = "http://127.0.0.1:54321"
@@ -45,7 +37,11 @@ fi
 [tasks.supabase-start]
 description = "Start local Supabase"
 depends = ["podman-start"]
-run = "supabase start"
+run = """
+# Set up Podman environment
+source .mise/scripts/setup-podman-env.sh
+supabase start
+"""
 
 [tasks.deps-start]
 description = "Start all dependencies (Podman + Supabase)"
@@ -107,6 +103,8 @@ echo "Development processes stopped"
 [tasks.stop]
 description = "Stop all services"
 run = """
+# Set up Podman environment
+source .mise/scripts/setup-podman-env.sh
 echo "Stopping Supabase..."
 supabase stop
 echo "Stopping Podman..."
@@ -125,6 +123,9 @@ mise run dev
 [tasks.status]
 description = "Check status of all services"
 run = """
+# Set up Podman environment
+source .mise/scripts/setup-podman-env.sh
+echo ""
 echo "=== Podman Status ==="
 podman machine list
 echo ""
@@ -138,6 +139,8 @@ supabase status
 [tasks.diagnose-podman]
 description = "Diagnose Podman socket configuration"
 run = """
+echo "=== Running Podman Diagnostics ==="
+echo ""
 echo "=== Podman Machine Info ==="
 podman machine list
 echo ""
@@ -152,10 +155,18 @@ else
   echo "/tmp/podman directory not found"
 fi
 echo ""
+echo "=== Testing Auto-Detection Script ==="
+if source .mise/scripts/setup-podman-env.sh 2>&1; then
+  echo "✓ Auto-detection successful"
+  echo "  DOCKER_HOST: $DOCKER_HOST"
+else
+  echo "✗ Auto-detection failed"
+fi
+echo ""
 echo "=== Podman Info (checking connectivity) ==="
 if podman info >/dev/null 2>&1; then
   echo "✓ Podman is accessible"
-  podman info --format json | grep -E "(remoteSocket|host)" | head -5
+  echo "Podman Version: $(podman version --format json | grep -o '"Version":"[^"]*' | head -1 | cut -d'"' -f4)"
 else
   echo "✗ Cannot connect to Podman"
 fi
