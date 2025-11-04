@@ -315,7 +315,7 @@ class AuthenticatedSupabaseClient(
      * Uses the Supabase Postgrest client which properly handles RLS policies
      */
     suspend fun getCheckboxGroups(): List<com.graphqlcheckmate.services.CheckboxGroupEntity> {
-        return client.from("checkbox_groups")
+        return client.from("groups")
             .select()
             .decodeList<com.graphqlcheckmate.services.CheckboxGroupEntity>()
     }
@@ -325,7 +325,7 @@ class AuthenticatedSupabaseClient(
      * Uses the Supabase Postgrest client which properly handles RLS policies
      */
     suspend fun getCheckboxGroupById(groupId: String): com.graphqlcheckmate.services.CheckboxGroupEntity? {
-        return client.from("checkbox_groups")
+        return client.from("groups")
             .select {
                 filter {
                     eq("id", groupId)
@@ -347,7 +347,7 @@ class AuthenticatedSupabaseClient(
             description = description,
             owner_id = ownerId
         )
-        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/checkbox_groups") {
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/groups") {
             header("Authorization", "Bearer $accessToken")
             header("apikey", supabaseKey)
             header("Prefer", "return=representation")

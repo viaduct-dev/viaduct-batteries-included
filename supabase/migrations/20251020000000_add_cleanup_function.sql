@@ -13,8 +13,8 @@ BEGIN
     -- Delete all group members
     DELETE FROM public.group_members WHERE true;
 
-    -- Delete all checkbox groups
-    DELETE FROM public.checkbox_groups WHERE true;
+    -- Delete all groups
+    DELETE FROM public.groups WHERE true;
 
     RAISE NOTICE 'Test data cleaned up successfully';
 END;
