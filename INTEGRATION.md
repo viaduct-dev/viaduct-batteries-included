@@ -1,6 +1,6 @@
 # Viaduct Integration Guide
 
-This document explains how graphql-check-mate has been integrated with Viaduct as a GraphQL middleware layer.
+This document explains how viaduct-template has been integrated with Viaduct as a GraphQL middleware layer.
 
 ## Architecture Overview
 
@@ -25,7 +25,7 @@ This document explains how graphql-check-mate has been integrated with Viaduct a
 ## Project Structure
 
 ```
-graphql-check-mate/
+viaduct-template/
 ├── backend/                    # Viaduct GraphQL server
 │   ├── modules/
 │   │   └── checklist/         # Checklist tenant module

@@ -1,6 +1,6 @@
 # Per-Row Policy Checks with Group Membership
 
-This document describes the implementation of per-row policy checks using Viaduct's CheckerExecutor feature for group-based access control in GraphQL Checkmate.
+This document describes the implementation of per-row policy checks using Viaduct's CheckerExecutor feature for group-based access control in Viaduct Template.
 
 ## Overview
 
@@ -282,11 +282,11 @@ fun `access denied when not group member`() {
 - `backend/src/main/viaduct/schema/ChecklistItem.graphqls` - Updated with group support
 
 ### Kotlin Implementation
-- `backend/src/main/kotlin/com/graphqlcheckmate/policy/GroupMembershipPolicyExecutor.kt` - Policy executor
-- `backend/src/main/kotlin/com/graphqlcheckmate/policy/GroupMembershipCheckerFactory.kt` - Executor factory
-- `backend/src/main/kotlin/com/graphqlcheckmate/services/GroupService.kt` - Group operations and membership checks
-- `backend/src/main/kotlin/com/graphqlcheckmate/SupabaseClient.kt` - Added group-related database methods
-- `backend/src/main/kotlin/com/graphqlcheckmate/config/KoinModule.kt` - Registered GroupService
+- `backend/src/main/kotlin/com/viaduct/policy/GroupMembershipPolicyExecutor.kt` - Policy executor
+- `backend/src/main/kotlin/com/viaduct/policy/GroupMembershipCheckerFactory.kt` - Executor factory
+- `backend/src/main/kotlin/com/viaduct/services/GroupService.kt` - Group operations and membership checks
+- `backend/src/main/kotlin/com/viaduct/SupabaseClient.kt` - Added group-related database methods
+- `backend/src/main/kotlin/com/viaduct/config/KoinModule.kt` - Registered GroupService
 
 ## Next Steps
 

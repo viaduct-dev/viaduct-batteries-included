@@ -1,6 +1,6 @@
 # E2E Tests
 
-This directory contains end-to-end tests for the GraphQL Checkmate application using Playwright.
+This directory contains end-to-end tests for the Viaduct Template application using Playwright.
 
 ## Prerequisites
 

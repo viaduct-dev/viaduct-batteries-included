@@ -47,7 +47,7 @@
 --
 -- RELATED FILES:
 -- - GraphQL Schema: backend/src/main/viaduct/schema/examples/checklist/ChecklistItem.graphqls.example
--- - Resolvers: backend/src/main/kotlin/com/graphqlcheckmate/examples/checklist/resolvers/
+-- - Resolvers: backend/src/main/kotlin/com/viaduct/examples/checklist/resolvers/
 -- - Frontend: src/components/examples/checklist/
 
 -- ============================================================================

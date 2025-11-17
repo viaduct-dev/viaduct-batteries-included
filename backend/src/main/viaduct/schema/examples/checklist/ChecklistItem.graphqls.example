@@ -33,7 +33,7 @@
 # 6. Ensure resolvers are implemented (see resolver examples)
 #
 # RELATED FILES:
-# - Resolvers: backend/src/main/kotlin/com/graphqlcheckmate/examples/checklist/resolvers/
+# - Resolvers: backend/src/main/kotlin/com/viaduct/examples/checklist/resolvers/
 # - Migration: supabase/migrations/examples/checklist/99999999999999_checklist_example.sql
 # - Frontend: src/components/examples/checklist/
 

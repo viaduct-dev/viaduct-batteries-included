@@ -7,7 +7,7 @@ plugins {
 }
 
 viaductApplication {
-    modulePackagePrefix.set("com.graphqlcheckmate")
+    modulePackagePrefix.set("com.viaduct")
 }
 
 viaductModule {

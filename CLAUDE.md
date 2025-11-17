@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-GraphQL Checkmate is a checklist application with a three-tier architecture:
+This is a Viaduct template project with a three-tier architecture:
 - **Frontend**: React/Vite with shadcn/ui components
 - **Backend**: Viaduct GraphQL middleware layer (Kotlin/Spring Boot)
 - **Database**: Supabase PostgreSQL
@@ -116,7 +116,7 @@ Single table: `checklist_items`
 
 ### Backend (`backend/`)
 
-- `src/main/kotlin/com/graphqlcheckmate/`:
+- `src/main/kotlin/com/viaduct/`:
   - `Application.kt`: Spring Boot application entry point
   - `SupabaseClient.kt`: Supabase client configuration
   - `resolvers/`: GraphQL resolvers for queries, mutations, and nodes

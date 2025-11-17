@@ -167,10 +167,10 @@ extend type Mutation @scope(to: ["default"]) {
 Create `GroupMembershipPolicyExecutor.kt`:
 
 ```kotlin
-package com.graphqlcheckmate.policy
+package com.viaduct.policy
 
-import com.graphqlcheckmate.GraphQLRequestContext
-import com.graphqlcheckmate.services.GroupService
+import com.viaduct.GraphQLRequestContext
+import com.viaduct.services.GroupService
 import viaduct.api.globalid.GlobalID
 import viaduct.engine.api.CheckerExecutor
 import viaduct.engine.api.CheckerResult
@@ -424,9 +424,9 @@ class GroupMembershipErrorResult(
 Create `GroupMembershipCheckerFactory.kt`:
 
 ```kotlin
-package com.graphqlcheckmate.policy
+package com.viaduct.policy
 
-import com.graphqlcheckmate.services.GroupService
+import com.viaduct.services.GroupService
 import viaduct.engine.api.CheckerExecutor
 import viaduct.engine.api.CheckerExecutorFactory
 import viaduct.engine.api.ViaductSchema
@@ -516,10 +516,10 @@ Register your factory in your configuration. If using Koin for dependency inject
 Create `KoinTenantCodeInjector.kt`:
 
 ```kotlin
-package com.graphqlcheckmate.config
+package com.viaduct.config
 
-import com.graphqlcheckmate.policy.GroupMembershipCheckerFactory
-import com.graphqlcheckmate.services.GroupService
+import com.viaduct.policy.GroupMembershipCheckerFactory
+import com.viaduct.services.GroupService
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import viaduct.engine.api.ViaductSchema
@@ -543,10 +543,10 @@ class KoinTenantCodeInjector : ViaductTenantCodeInjector, KoinComponent {
 If using Spring's constructor injection instead:
 
 ```kotlin
-package com.graphqlcheckmate.config
+package com.viaduct.config
 
-import com.graphqlcheckmate.policy.GroupMembershipCheckerFactory
-import com.graphqlcheckmate.services.GroupService
+import com.viaduct.policy.GroupMembershipCheckerFactory
+import com.viaduct.services.GroupService
 import org.springframework.stereotype.Component
 import viaduct.engine.api.ViaductSchema
 import viaduct.spring.ViaductTenantCodeInjector
@@ -569,7 +569,7 @@ class SpringTenantCodeInjector(
 The policy executor needs a service to check group membership. Create `GroupService.kt`:
 
 ```kotlin
-package com.graphqlcheckmate.services
+package com.viaduct.services
 
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from

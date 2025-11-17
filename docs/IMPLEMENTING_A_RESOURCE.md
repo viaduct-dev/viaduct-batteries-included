@@ -172,7 +172,7 @@ extend type Mutation @scope(to: ["default"]) {
 
 ### Add Methods to SupabaseClient
 
-Edit: `backend/src/main/kotlin/com/graphqlcheckmate/SupabaseClient.kt`
+Edit: `backend/src/main/kotlin/com/viaduct/SupabaseClient.kt`
 
 ```kotlin
 // In AuthenticatedSupabaseClient class
@@ -247,14 +247,14 @@ data class YourResourceEntity(
 
 ### Create Resolvers
 
-Create files in: `backend/src/main/kotlin/com/graphqlcheckmate/resolvers/`
+Create files in: `backend/src/main/kotlin/com/viaduct/resolvers/`
 
 #### Create Resolver
 
 ```kotlin
-package com.graphqlcheckmate.resolvers
+package com.viaduct.resolvers
 
-import com.graphqlcheckmate.resolvers.resolverbases.MutationResolvers
+import com.viaduct.resolvers.resolverbases.MutationResolvers
 import viaduct.api.Resolver
 import viaduct.api.grts.YourResource
 
@@ -288,9 +288,9 @@ class CreateYourResourceResolver : MutationResolvers.CreateYourResource() {
 #### Query Resolver
 
 ```kotlin
-package com.graphqlcheckmate.resolvers
+package com.viaduct.resolvers
 
-import com.graphqlcheckmate.resolvers.resolverbases.QueryResolvers
+import com.viaduct.resolvers.resolverbases.QueryResolvers
 import viaduct.api.Resolver
 import viaduct.api.grts.YourResource
 
@@ -605,7 +605,7 @@ Use Supabase Storage for actual files.
 
 ## Resources
 
-- [Checklist Example](../backend/src/main/kotlin/com/graphqlcheckmate/examples/checklist/)
+- [Checklist Example](../backend/src/main/kotlin/com/viaduct/examples/checklist/)
 - [Viaduct Documentation](https://viaduct.ai/docs)
 - [Supabase RLS Guide](https://supabase.com/docs/guides/auth/row-level-security)
 - [GraphQL Best Practices](https://graphql.org/learn/best-practices/)

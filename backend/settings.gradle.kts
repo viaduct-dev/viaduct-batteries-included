@@ -20,4 +20,4 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "graphql-checkmate-backend"
+rootProject.name = "viaduct-backend"

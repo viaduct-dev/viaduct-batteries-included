@@ -5,7 +5,7 @@ Generated: 2025-10-22
 ## HIGH PRIORITY - Fix Immediately
 
 ### ✅ 1. CORS Security - `anyHost()` is a security vulnerability
-**Location:** `src/main/kotlin/com/graphqlcheckmate/Application.kt:101`
+**Location:** `src/main/kotlin/com/viaduct/Application.kt:101`
 
 **Issue:** Using `anyHost()` allows any origin to access the API
 
@@ -23,7 +23,7 @@ allowedHosts.forEach { host ->
 ---
 
 ### ✅ 2. Unsafe JSON Deserialization with Type Erasure
-**Location:** `src/main/kotlin/com/graphqlcheckmate/Application.kt:109-115`
+**Location:** `src/main/kotlin/com/viaduct/Application.kt:109-115`
 
 **Issue:** Using unchecked casts with `Map::class.java`
 
@@ -40,7 +40,7 @@ data class GraphQLRequest(
 ---
 
 ### ✅ 3. Missing Resource Cleanup for HttpClient
-**Location:** `src/main/kotlin/com/graphqlcheckmate/config/KoinModule.kt:23-31`
+**Location:** `src/main/kotlin/com/viaduct/config/KoinModule.kt:23-31`
 
 **Issue:** HttpClient singleton is never closed, leading to resource leaks
 
@@ -57,9 +57,9 @@ single {
 
 ### ✅ 4. Multiple HttpClient Instances Created
 **Locations:**
-- `src/main/kotlin/com/graphqlcheckmate/SupabaseClient.kt:77-92` (customHttpClient)
-- `src/main/kotlin/com/graphqlcheckmate/SupabaseClient.kt:146-152` (getAuthenticatedClient fallback)
-- `src/main/kotlin/com/graphqlcheckmate/services/GroupService.kt:48` (unused HttpClient)
+- `src/main/kotlin/com/viaduct/SupabaseClient.kt:77-92` (customHttpClient)
+- `src/main/kotlin/com/viaduct/SupabaseClient.kt:146-152` (getAuthenticatedClient fallback)
+- `src/main/kotlin/com/viaduct/services/GroupService.kt:48` (unused HttpClient)
 
 **Issue:** Multiple HttpClient instances defeat connection pooling
 
@@ -71,7 +71,7 @@ single {
 ---
 
 ### ✅ 5. Non-idiomatic Koin Retrieval in Application Setup
-**Location:** `src/main/kotlin/com/graphqlcheckmate/Application.kt:64-68`
+**Location:** `src/main/kotlin/com/viaduct/Application.kt:64-68`
 
 **Issue:** Mixing `get<T>()` and `getKoin()` styles
 
@@ -80,7 +80,7 @@ single {
 ---
 
 ### ✅ 6. Authentication Plugin Swallows Exceptions
-**Location:** `src/main/kotlin/com/graphqlcheckmate/plugins/AuthenticationPlugin.kt:42-56`
+**Location:** `src/main/kotlin/com/viaduct/plugins/AuthenticationPlugin.kt:42-56`
 
 **Issue:** All exceptions return 401, hiding bugs
 
@@ -91,35 +91,35 @@ single {
 ## MEDIUM PRIORITY - Fix in Next Sprint
 
 ### ✅ 7. CORS Plugin Try-Catch Anti-pattern
-**Location:** `src/main/kotlin/com/graphqlcheckmate/Application.kt:92-105`
+**Location:** `src/main/kotlin/com/viaduct/Application.kt:92-105`
 
 **Fix:** Use `pluginOrNull(CORS)` instead of exception handling
 
 ---
 
 ### ✅ 8. Deprecated GroupService Method Still in Use
-**Location:** `src/main/kotlin/com/graphqlcheckmate/services/GroupService.kt:72-75`
+**Location:** `src/main/kotlin/com/viaduct/services/GroupService.kt:72-75`
 
 **Fix:** Removed deprecated method entirely (not in use)
 
 ---
 
 ### ✅ 9. Type Casting in KoinTenantCodeInjector
-**Location:** `src/main/kotlin/com/graphqlcheckmate/config/KoinTenantCodeInjector.kt:17-24`
+**Location:** `src/main/kotlin/com/viaduct/config/KoinTenantCodeInjector.kt:17-24`
 
 **Fix:** Kept original implementation (recommended simplification doesn't work without additional setup)
 
 ---
 
 ### ✅ 10. Manual JSON Serialization in Response
-**Location:** `src/main/kotlin/com/graphqlcheckmate/Application.kt:135`
+**Location:** `src/main/kotlin/com/viaduct/Application.kt:135`
 
 **Fix:** Installed ContentNegotiation plugin and let Ktor handle JSON serialization
 
 ---
 
 ### ✅ 11. GlobalID Decoding Error Handling
-**Location:** `src/main/kotlin/com/graphqlcheckmate/policy/GroupMembershipPolicyExecutor.kt:62-82`
+**Location:** `src/main/kotlin/com/viaduct/policy/GroupMembershipPolicyExecutor.kt:62-82`
 
 **Fix:** Added proper error messages and GlobalID format validation
 
@@ -156,7 +156,7 @@ single {
 ---
 
 ### ✅ 16. Manual JSON String Construction
-**Location:** `src/main/kotlin/com/graphqlcheckmate/SupabaseClient.kt` (multiple locations)
+**Location:** `src/main/kotlin/com/viaduct/SupabaseClient.kt` (multiple locations)
 
 **Fix:** Replaced with type-safe serialization using data classes (SetUserAdminInput, SearchUsersInput, DeleteUserInput)
 
@@ -175,7 +175,7 @@ single {
 ---
 
 ### ✅ 19. GraphiQL HTML in Code
-**Location:** `src/main/kotlin/com/graphqlcheckmate/Application.kt:150-171`
+**Location:** `src/main/kotlin/com/viaduct/Application.kt:150-171`
 
 **Fix:** Moved HTML template to `src/main/resources/graphiql.html` and updated route to load from resources
 

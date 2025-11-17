@@ -214,3 +214,164 @@ export const REMOVE_GROUP_MEMBER = `
     })
   }
 `;
+
+// ----------------------------------------------------------------------------
+// Blog Post Management (Multi-Tenant Blog Platform)
+// ----------------------------------------------------------------------------
+
+export const GET_BLOG_POSTS_BY_GROUP = `
+  query GetBlogPostsByGroup($groupId: ID!) {
+    blogPostsByGroup(groupId: $groupId) {
+      id
+      title
+      slug
+      content
+      published
+      createdAt
+      updatedAt
+      userId
+      groupId
+      author {
+        id
+        email
+      }
+    }
+  }
+`;
+
+export const GET_BLOG_POST = `
+  query GetBlogPost($id: ID!) {
+    blogPost(id: $id) {
+      id
+      title
+      slug
+      content
+      published
+      createdAt
+      updatedAt
+      userId
+      groupId
+      author {
+        id
+        email
+      }
+      group {
+        id
+        name
+        description
+      }
+    }
+  }
+`;
+
+export const GET_BLOG_POST_BY_SLUG = `
+  query GetBlogPostBySlug($groupId: ID!, $slug: String!) {
+    blogPostBySlug(groupId: $groupId, slug: $slug) {
+      id
+      title
+      slug
+      content
+      published
+      createdAt
+      updatedAt
+      userId
+      groupId
+      author {
+        id
+        email
+      }
+      group {
+        id
+        name
+        description
+      }
+    }
+  }
+`;
+
+export const GET_MY_BLOG_POSTS = `
+  query GetMyBlogPosts {
+    myBlogPosts {
+      id
+      title
+      slug
+      content
+      published
+      createdAt
+      updatedAt
+      userId
+      groupId
+      group {
+        id
+        name
+      }
+    }
+  }
+`;
+
+export const CREATE_BLOG_POST = `
+  mutation CreateBlogPost($groupId: ID!, $title: String!, $slug: String!, $content: String!, $published: Boolean) {
+    createBlogPost(input: {
+      groupId: $groupId
+      title: $title
+      slug: $slug
+      content: $content
+      published: $published
+    }) {
+      id
+      title
+      slug
+      content
+      published
+      createdAt
+      updatedAt
+      userId
+      groupId
+    }
+  }
+`;
+
+export const UPDATE_BLOG_POST = `
+  mutation UpdateBlogPost($id: ID!, $title: String, $slug: String, $content: String, $published: Boolean) {
+    updateBlogPost(input: {
+      id: $id
+      title: $title
+      slug: $slug
+      content: $content
+      published: $published
+    }) {
+      id
+      title
+      slug
+      content
+      published
+      createdAt
+      updatedAt
+      userId
+      groupId
+    }
+  }
+`;
+
+export const DELETE_BLOG_POST = `
+  mutation DeleteBlogPost($id: ID!) {
+    deleteBlogPost(input: {
+      id: $id
+    })
+  }
+`;
+
+export const PUBLISH_BLOG_POST = `
+  mutation PublishBlogPost($id: ID!, $published: Boolean!) {
+    publishBlogPost(input: {
+      id: $id
+      published: $published
+    }) {
+      id
+      title
+      slug
+      published
+      updatedAt
+    }
+  }
+`;

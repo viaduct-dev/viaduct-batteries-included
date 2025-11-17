@@ -1,6 +1,6 @@
 # Rebuild Plan
 
-This playbook explains how to rebuild an application with the same business logic and technology stack as **GraphQL Check Mate** starting from an empty repository. Each section focuses on the concepts rather than one-off file names so the approach works in any environment. Use the GraphQL schema as the contract between layers, and keep the Viaduct global ID and policy guides (`../VIADUCT_GLOBALID_GUIDE.md`, `../VIADUCT_POLICY_GUIDE.md`) close at hand while you work.
+This playbook explains how to rebuild an application with the same business logic and technology stack as **Viaduct Template** starting from an empty repository. Each section focuses on the concepts rather than one-off file names so the approach works in any environment. Use the GraphQL schema as the contract between layers, and keep the Viaduct global ID and policy guides (`../VIADUCT_GLOBALID_GUIDE.md`, `../VIADUCT_POLICY_GUIDE.md`) close at hand while you work.
 
 ---
 

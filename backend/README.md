@@ -1,4 +1,4 @@
-# GraphQL Checkmate Backend
+# Viaduct Template Backend
 
 A Viaduct-based GraphQL backend service that sits between the Lovable frontend and Supabase database.
 

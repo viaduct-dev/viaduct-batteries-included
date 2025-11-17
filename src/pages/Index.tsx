@@ -4,12 +4,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { UserList } from "@/components/UserList";
 import { Button } from "@/components/ui/button";
-import { LogOut, Shield } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LogOut, Shield, BookOpen, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { executeGraphQL, GET_GROUPS, CREATE_GROUP } from "@/lib/graphql";
+
+interface Group {
+  id: string;
+  name: string;
+  description?: string;
+}
 
 const Index = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -21,6 +31,8 @@ const Index = () => {
       }
       if (!session) {
         navigate("/auth");
+      } else {
+        loadGroups();
       }
     });
 
@@ -40,6 +52,33 @@ const Index = () => {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  const loadGroups = async () => {
+    try {
+      setLoadingGroups(true);
+      const data = await executeGraphQL<{ groups: Group[] }>(GET_GROUPS, {});
+      setGroups(data.groups);
+    } catch (error: any) {
+      console.error("Failed to load groups:", error);
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
+
+  const handleCreateGroup = async () => {
+    const name = prompt("Enter group name:");
+    if (!name) return;
+
+    const description = prompt("Enter group description (optional):");
+
+    try {
+      await executeGraphQL(CREATE_GROUP, { name, description });
+      toast({ title: "Group created successfully" });
+      loadGroups();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -82,22 +121,59 @@ const Index = () => {
 
         {isAdmin && <UserList />}
 
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>My Groups & Blogs</CardTitle>
+                <CardDescription>Groups you're a member of and their blogs</CardDescription>
+              </div>
+              <Button onClick={handleCreateGroup} size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                New Group
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loadingGroups ? (
+              <p className="text-muted-foreground">Loading groups...</p>
+            ) : groups.length === 0 ? (
+              <p className="text-muted-foreground">No groups yet. Create one to get started!</p>
+            ) : (
+              <div className="space-y-3">
+                {groups.map((group) => (
+                  <Card key={group.id} className="hover:shadow-md transition-shadow">
+                    <CardHeader className="py-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle className="text-lg">{group.name}</CardTitle>
+                          {group.description && (
+                            <CardDescription>{group.description}</CardDescription>
+                          )}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/blog/${group.id}`)}
+                        >
+                          <BookOpen className="h-4 w-4 mr-2" />
+                          View Blog
+                        </Button>
+                      </div>
+                    </CardHeader>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <div className="bg-card rounded-lg border p-6 space-y-4">
           <h2 className="text-xl font-semibold">Welcome to the GraphQL Policy Framework</h2>
           <p className="text-muted-foreground">
             This is a generic policy checker framework with group-based access control.
-            The checklist functionality has been moved to examples to serve as a reference implementation.
+            Each group acts as a separate multi-tenant blog platform.
           </p>
-          <div className="space-y-2">
-            <h3 className="font-medium">To implement your own resource:</h3>
-            <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1 ml-4">
-              <li>See <code className="bg-muted px-1 py-0.5 rounded">backend/src/main/kotlin/com/graphqlcheckmate/examples/checklist/</code></li>
-              <li>See <code className="bg-muted px-1 py-0.5 rounded">backend/src/main/viaduct/schema/examples/checklist/</code></li>
-              <li>See <code className="bg-muted px-1 py-0.5 rounded">supabase/migrations/examples/checklist/</code></li>
-              <li>See <code className="bg-muted px-1 py-0.5 rounded">src/components/examples/checklist/</code></li>
-              <li>Read <code className="bg-muted px-1 py-0.5 rounded">docs/IMPLEMENTING_A_RESOURCE.md</code></li>
-            </ul>
-          </div>
         </div>
 
         <p className="text-center text-sm text-muted-foreground">

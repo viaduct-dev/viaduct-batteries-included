@@ -31,28 +31,5 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
 
--- Update RLS policies to allow admins to mutate all items
-
--- Drop existing mutation policies
-DROP POLICY IF EXISTS "Users can create their own checklist items" ON public.checklist_items;
-DROP POLICY IF EXISTS "Users can update their own checklist items" ON public.checklist_items;
-DROP POLICY IF EXISTS "Users can delete their own checklist items" ON public.checklist_items;
-
--- Recreate policies with admin access
-CREATE POLICY "Users and admins can create checklist items"
-  ON public.checklist_items
-  FOR INSERT
-  WITH CHECK (auth.uid() = user_id OR public.is_admin());
-
-CREATE POLICY "Users and admins can update checklist items"
-  ON public.checklist_items
-  FOR UPDATE
-  USING (auth.uid() = user_id OR public.is_admin());
-
-CREATE POLICY "Users and admins can delete checklist items"
-  ON public.checklist_items
-  FOR DELETE
-  USING (auth.uid() = user_id OR public.is_admin());
-
--- Keep the SELECT policy unchanged (users can only see their own items)
--- Admins don't need to see all items, just mutate them
+-- Admin functions are now available
+-- RLS policies for specific tables should be defined in their respective migrations

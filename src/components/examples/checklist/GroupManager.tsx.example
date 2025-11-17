@@ -64,7 +64,7 @@
 // RELATED FILES:
 // - Queries: src/lib/examples/checklist-queries.ts.example
 // - Schema: backend/src/main/viaduct/schema/examples/checklist/ChecklistItem.graphqls.example
-// - Resolvers: backend/src/main/kotlin/com/graphqlcheckmate/examples/checklist/resolvers/
+// - Resolvers: backend/src/main/kotlin/com/viaduct/examples/checklist/resolvers/
 //
 // UI LIBRARIES USED:
 // - shadcn/ui: Button, Card, Dialog, Input, Label, Textarea, Checkbox

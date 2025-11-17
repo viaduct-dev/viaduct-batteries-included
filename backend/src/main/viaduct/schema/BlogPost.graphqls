@@ -1,0 +1,194 @@
+"""
+A blog post within a group.
+Each group acts as a separate blog with its own posts.
+"""
+type BlogPost implements Node @scope(to: ["default"]) @requiresGroupMembership(groupIdField: "groupId") {
+  """
+  The unique identifier for the blog post.
+  """
+  id: ID!
+
+  """
+  The group (blog) this post belongs to.
+  """
+  group: Group! @resolver
+
+  """
+  The internal group ID.
+  """
+  groupId: String!
+
+  """
+  The author of this blog post.
+  """
+  author: User! @resolver
+
+  """
+  The internal user ID of the author.
+  """
+  userId: String!
+
+  """
+  The title of the blog post.
+  """
+  title: String!
+
+  """
+  The URL-friendly slug for this post (unique within the group).
+  """
+  slug: String!
+
+  """
+  The content of the blog post (markdown or HTML).
+  """
+  content: String!
+
+  """
+  Whether this post is published and visible to all group members.
+  """
+  published: Boolean!
+
+  """
+  When the post was created.
+  """
+  createdAt: String!
+
+  """
+  When the post was last updated.
+  """
+  updatedAt: String!
+}
+
+"""
+Input for creating a new blog post.
+"""
+input CreateBlogPostInput @scope(to: ["default"]) {
+  """
+  The group (blog) to create the post in.
+  """
+  groupId: ID! @idOf(type: "Group")
+
+  """
+  The title of the blog post.
+  """
+  title: String!
+
+  """
+  The URL-friendly slug (must be unique within the group).
+  """
+  slug: String!
+
+  """
+  The content of the blog post.
+  """
+  content: String!
+
+  """
+  Whether to publish the post immediately (default: false).
+  """
+  published: Boolean
+}
+
+"""
+Input for updating a blog post.
+"""
+input UpdateBlogPostInput @scope(to: ["default"]) {
+  """
+  The ID of the blog post to update.
+  """
+  id: ID! @idOf(type: "BlogPost")
+
+  """
+  The new title (optional).
+  """
+  title: String
+
+  """
+  The new slug (optional, must be unique within the group).
+  """
+  slug: String
+
+  """
+  The new content (optional).
+  """
+  content: String
+
+  """
+  The new published status (optional).
+  """
+  published: Boolean
+}
+
+"""
+Input for deleting a blog post.
+"""
+input DeleteBlogPostInput @scope(to: ["default"]) {
+  """
+  The ID of the blog post to delete.
+  """
+  id: ID! @idOf(type: "BlogPost")
+}
+
+"""
+Input for publishing or unpublishing a blog post.
+"""
+input PublishBlogPostInput @scope(to: ["default"]) {
+  """
+  The ID of the blog post.
+  """
+  id: ID! @idOf(type: "BlogPost")
+
+  """
+  Whether to publish (true) or unpublish (false) the post.
+  """
+  published: Boolean!
+}
+
+extend type Query @scope(to: ["default"]) {
+  """
+  Get all blog posts for a specific group (blog).
+  Only returns published posts unless the user is the author.
+  """
+  blogPostsByGroup(groupId: ID! @idOf(type: "Group")): [BlogPost!]! @resolver
+
+  """
+  Get a specific blog post by ID.
+  """
+  blogPost(id: ID! @idOf(type: "BlogPost")): BlogPost @resolver
+
+  """
+  Get a blog post by its slug within a specific group.
+  """
+  blogPostBySlug(groupId: ID! @idOf(type: "Group"), slug: String!): BlogPost @resolver
+
+  """
+  Get all blog posts created by the current user.
+  """
+  myBlogPosts: [BlogPost!]! @resolver
+}
+
+extend type Mutation @scope(to: ["default"]) {
+  """
+  Create a new blog post.
+  User must be a member of the group.
+  """
+  createBlogPost(input: CreateBlogPostInput!): BlogPost! @resolver
+
+  """
+  Update a blog post.
+  Only the author can update their own posts.
+  """
+  updateBlogPost(input: UpdateBlogPostInput!): BlogPost! @resolver
+
+  """
+  Delete a blog post.
+  Only the author can delete their own posts.
+  """
+  deleteBlogPost(input: DeleteBlogPostInput!): Boolean! @resolver
+
+  """
+  Publish or unpublish a blog post.
+  Only the author can change the published status.
+  """
+  publishBlogPost(input: PublishBlogPostInput!): BlogPost! @resolver
+}

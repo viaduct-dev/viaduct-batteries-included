@@ -1,6 +1,6 @@
-# GraphQL Checkmate
+# Viaduct Template
 
-A modern checklist application demonstrating a three-tier architecture with GraphQL middleware.
+A starter template demonstrating a three-tier architecture with GraphQL middleware.
 
 ## Architecture
 
