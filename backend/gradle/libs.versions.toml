@@ -9,7 +9,7 @@ springContext = "6.2.7"
 mockk-jvm = "1.13.3"
 supabase = "3.2.5"
 ktor = "3.2.0"
-viaduct = "0.4.0"
+viaduct = "0.11.0"
 java-jwt = "4.4.0"
 
 [plugins]
