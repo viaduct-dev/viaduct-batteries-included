@@ -32,20 +32,34 @@ import viaduct.service.runtime.SchemaRegistryConfiguration
 import viaduct.service.runtime.StandardViaduct
 import viaduct.service.api.ExecutionInput as ViaductExecutionInput
 
+private val logger = org.slf4j.LoggerFactory.getLogger("Application")
+
 /**
  * Configure the Ktor application with GraphQL and authentication
  */
 fun Application.module() {
     val supabaseUrl = System.getenv("SUPABASE_URL") ?: "http://127.0.0.1:54321"
-    val supabaseKey = System.getenv("SUPABASE_ANON_KEY") ?: error("SUPABASE_ANON_KEY must be set")
+    val supabaseKey = System.getenv("SUPABASE_ANON_KEY")
 
-    configureApplication(supabaseUrl, supabaseKey)
+    // Graceful handling of missing configuration
+    val configurationComplete = supabaseKey != null
+
+    if (!configurationComplete) {
+        logger.warn("=" .repeat(60))
+        logger.warn("SUPABASE_ANON_KEY is not set!")
+        logger.warn("The server will start but GraphQL queries will fail.")
+        logger.warn("Set SUPABASE_ANON_KEY environment variable to enable full functionality.")
+        logger.warn("Get your key from: https://supabase.com/dashboard → Settings → API")
+        logger.warn("=" .repeat(60))
+    }
+
+    configureApplication(supabaseUrl, supabaseKey ?: "NOT_CONFIGURED", configurationComplete)
 }
 
 /**
  * Configure the application with the given Supabase credentials
  */
-fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
+fun Application.configureApplication(supabaseUrl: String, supabaseKey: String, configurationComplete: Boolean = true) {
     // Create object mapper for JSON serialization
     val objectMapper = jacksonObjectMapper()
 
@@ -137,22 +151,37 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
 
             // Use environment-based configuration for security
             // In production, set ALLOWED_ORIGINS to comma-separated list of allowed origins
+            // Supports: full URLs (https://example.com), hostnames (example.com), or host:port
             val allowedOrigins = System.getenv("ALLOWED_ORIGINS")
                 ?.split(",")
                 ?.map { it.trim() }
+                ?.filter { it.isNotEmpty() }
                 ?: listOf("http://localhost:5173", "http://127.0.0.1:5173")
 
             allowedOrigins.forEach { origin ->
-                // Parse the origin URI to extract host and scheme
-                // allowHost() expects just the hostname:port, not the full URL
-                val uri = java.net.URI(origin)
-                val host = if (uri.port != -1) {
-                    "${uri.host}:${uri.port}"
-                } else {
-                    uri.host
+                try {
+                    // Handle different formats:
+                    // - Full URL: https://example.com or http://localhost:5173
+                    // - Hostname only: example.onrender.com (from Render's fromService)
+                    // - Host:port: example.com:443
+                    val normalizedOrigin = when {
+                        origin.startsWith("http://") || origin.startsWith("https://") -> origin
+                        origin.contains(":") -> "https://$origin"  // host:port format
+                        else -> "https://$origin"  // hostname only, assume HTTPS
+                    }
+
+                    val uri = java.net.URI(normalizedOrigin)
+                    val host = if (uri.port != -1 && uri.port != 443 && uri.port != 80) {
+                        "${uri.host}:${uri.port}"
+                    } else {
+                        uri.host
+                    }
+                    val scheme = uri.scheme
+                    allowHost(host, schemes = listOf(scheme))
+                    logger.info("CORS: Allowing origin $scheme://$host")
+                } catch (e: Exception) {
+                    logger.warn("CORS: Failed to parse origin '$origin': ${e.message}")
                 }
-                val scheme = uri.scheme
-                allowHost(host, schemes = listOf(scheme))
             }
         }
     }
@@ -193,6 +222,24 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String) {
 
         get("/health") {
             call.respondText("OK")
+        }
+
+        // Setup status endpoint - shows configuration status
+        get("/setup") {
+            val status = mapOf(
+                "configured" to configurationComplete,
+                "supabaseUrl" to (System.getenv("SUPABASE_URL") != null),
+                "supabaseAnonKey" to (System.getenv("SUPABASE_ANON_KEY") != null),
+                "supabaseServiceRoleKey" to (System.getenv("SUPABASE_SERVICE_ROLE_KEY") != null),
+                "allowedOrigins" to (System.getenv("ALLOWED_ORIGINS") ?: "localhost defaults"),
+                "message" to if (configurationComplete) {
+                    "All required configuration is set. The API is ready to use."
+                } else {
+                    "Missing required configuration. Set SUPABASE_ANON_KEY to enable GraphQL queries."
+                },
+                "docs" to "https://supabase.com/dashboard → Settings → API"
+            )
+            call.respond(HttpStatusCode.OK, status)
         }
     }
 }

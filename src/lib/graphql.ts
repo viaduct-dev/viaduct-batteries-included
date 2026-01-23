@@ -5,7 +5,32 @@ interface GraphQLResponse<T> {
   errors?: Array<{ message: string }>;
 }
 
-const GRAPHQL_ENDPOINT = import.meta.env.VITE_GRAPHQL_ENDPOINT || "http://localhost:8080/graphql";
+/**
+ * Normalize the GraphQL endpoint URL.
+ * Handles various formats:
+ * - Full URL: https://example.com/graphql
+ * - Host:port from Render: example.onrender.com:443
+ * - Hostname only: example.onrender.com
+ * - Local development: http://localhost:8080/graphql
+ */
+function normalizeGraphQLEndpoint(endpoint: string | undefined): string {
+  if (!endpoint) {
+    return "http://localhost:8080/graphql";
+  }
+
+  // Already a full URL
+  if (endpoint.startsWith("http://") || endpoint.startsWith("https://")) {
+    // Ensure it ends with /graphql
+    return endpoint.endsWith("/graphql") ? endpoint : `${endpoint}/graphql`;
+  }
+
+  // Host:port format (from Render's fromService.hostport)
+  // or hostname only (from Render's fromService.host)
+  const baseUrl = `https://${endpoint}`;
+  return `${baseUrl}/graphql`;
+}
+
+const GRAPHQL_ENDPOINT = normalizeGraphQLEndpoint(import.meta.env.VITE_GRAPHQL_ENDPOINT);
 
 /**
  * Execute a GraphQL query or mutation against the Viaduct backend.

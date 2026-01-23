@@ -1,0 +1,77 @@
+# Render.com Blueprint
+# Deploy this project with: https://render.com/deploy
+#
+# Prerequisites:
+# 1. A Supabase project (https://supabase.com)
+# 2. Supabase URL and API keys from Settings → API in your Supabase dashboard
+
+# Environment group to share Supabase credentials between services
+envVarGroups:
+  - name: supabase-credentials
+    envVars:
+      - key: SUPABASE_URL
+        sync: false  # Prompts user during deploy
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+services:
+  # Viaduct GraphQL Backend (Kotlin/Ktor)
+  # NOTE: JVM requires ~300-400MB RAM. Free tier (512MB) fits but spins down after inactivity.
+  # For always-on, upgrade to "starter" ($7/mo).
+  - type: web
+    name: viaduct-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .  # Root context to access supabase/migrations
+    healthCheckPath: /health
+    plan: free
+    envVars:
+      # Supabase credentials from shared group
+      - fromGroup: supabase-credentials
+      # CORS: Auto-configured to allow the frontend service
+      - key: ALLOWED_ORIGINS
+        fromService:
+          name: viaduct-frontend
+          type: web
+          property: host
+        # Render provides just the hostname, we need to add https://
+        # The app handles this by accepting hostname and constructing URL
+
+  # React Frontend (Static Site)
+  - type: web
+    name: viaduct-frontend
+    runtime: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    plan: free
+    envVars:
+      # Supabase credentials for auth (derived from shared group)
+      - key: VITE_SUPABASE_URL
+        fromGroup: supabase-credentials
+        envVarKey: SUPABASE_URL
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        fromGroup: supabase-credentials
+        envVarKey: SUPABASE_ANON_KEY
+      # Auto-link to backend GraphQL endpoint
+      - key: VITE_GRAPHQL_ENDPOINT
+        fromService:
+          name: viaduct-backend
+          type: web
+          property: hostport
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-XSS-Protection
+        value: 1; mode=block
+    routes:
+      # SPA fallback - serve index.html for client-side routing
+      - type: rewrite
+        source: /*
+        destination: /index.html

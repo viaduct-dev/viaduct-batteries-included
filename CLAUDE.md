@@ -296,3 +296,80 @@ mise run stop
 supabase db reset
 mise run dev
 ```
+
+## Deployment to Render.com
+
+This project includes a `render.yaml` blueprint for one-click deployment to [Render.com](https://render.com).
+
+### Prerequisites
+
+1. **Supabase Project**: Create a project at [supabase.com](https://supabase.com) (free tier works)
+2. **Render Account**: Sign up at [render.com](https://render.com)
+
+### Costs
+
+- **Frontend**: Free (static site)
+- **Backend**: Free (512MB RAM)
+  - Spins down after ~15 min of inactivity
+  - Cold starts take 30-60 seconds (JVM startup)
+  - Upgrade to `starter` ($7/mo) in render.yaml for always-on
+
+### One-Click Deploy
+
+1. Click the "Deploy to Render" button in the README
+2. Connect your GitHub repository
+3. Enter your Supabase credentials when prompted (just 3 values!):
+   - `SUPABASE_URL` - Your project URL
+   - `SUPABASE_ANON_KEY` - Public/anon key
+   - `SUPABASE_SERVICE_ROLE_KEY` - Service role key
+4. Click "Apply" - Render handles the rest!
+
+**What's automatic:**
+- **Database migrations** run on every deploy
+- **Frontend config** derived from backend credentials
+- Backend and frontend URLs are auto-linked
+- CORS is auto-configured between services
+
+### Setting Up Supabase
+
+1. Go to your [Supabase Dashboard](https://app.supabase.com)
+2. Create a new project (or select existing)
+3. **Enable Email Auth**: Go to **Authentication** → **Providers** → **Email** → Enable
+4. **Get API credentials**: Go to **Settings** → **API** and copy:
+   - **Project URL** → `SUPABASE_URL`
+   - **anon public** key → `SUPABASE_ANON_KEY`
+   - **service_role** key → `SUPABASE_SERVICE_ROLE_KEY`
+
+### Database Migrations
+
+**Migrations run automatically** on every deploy! The backend:
+1. Derives the database connection from `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
+2. Runs all pending migrations from `supabase/migrations/`
+3. Tracks applied migrations in a `schema_migrations` table
+
+For local development, use:
+```bash
+supabase db push
+```
+
+### Checking Configuration Status
+
+After deployment, visit these endpoints:
+- **Setup Status**: `https://viaduct-backend.onrender.com/setup` - Shows configuration status
+- **Health Check**: `https://viaduct-backend.onrender.com/health` - Returns "OK" if running
+- **GraphiQL**: `https://viaduct-backend.onrender.com/graphiql` - Interactive GraphQL explorer
+
+### Service URLs (After Deployment)
+
+- **Frontend**: `https://viaduct-frontend.onrender.com`
+- **Backend GraphQL**: `https://viaduct-backend.onrender.com/graphql`
+
+### Troubleshooting
+
+**Services deployed but not working?**
+1. Check `/setup` endpoint for configuration status
+2. Verify all Supabase credentials are entered correctly
+3. Ensure database migrations have been pushed
+
+**First deploy is slow?**
+The backend Docker build takes several minutes on first deploy. Subsequent deploys are faster due to caching.

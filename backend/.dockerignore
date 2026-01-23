@@ -1,0 +1,23 @@
+# Gradle build output
+build/
+.gradle/
+
+# IDE files
+.idea/
+*.iml
+
+# Kotlin compiled files
+*.class
+org/
+
+# Local environment
+.env
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test reports
+test-results/
+reports/
