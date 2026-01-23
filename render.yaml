@@ -47,13 +47,11 @@ services:
     staticPublishPath: ./dist
     plan: free
     envVars:
-      # Supabase credentials for auth (derived from shared group)
+      # Supabase credentials for auth (same values as backend)
       - key: VITE_SUPABASE_URL
-        fromGroup: supabase-credentials
-        envVarKey: SUPABASE_URL
+        sync: false  # Same as SUPABASE_URL
       - key: VITE_SUPABASE_PUBLISHABLE_KEY
-        fromGroup: supabase-credentials
-        envVarKey: SUPABASE_ANON_KEY
+        sync: false  # Same as SUPABASE_ANON_KEY
       # Auto-link to backend GraphQL endpoint
       - key: VITE_GRAPHQL_ENDPOINT
         fromService:
