@@ -217,10 +217,17 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String, c
                     // - Full URL: https://example.com or http://localhost:5173
                     // - Hostname only: example.onrender.com (from Render's fromService)
                     // - Host:port: example.com:443
-                    val normalizedOrigin = when {
+                    // - Render service name only: viaduct-frontend (append .onrender.com)
+                    val expandedOrigin = when {
                         origin.startsWith("http://") || origin.startsWith("https://") -> origin
-                        origin.contains(":") -> "https://$origin"  // host:port format
-                        else -> "https://$origin"  // hostname only, assume HTTPS
+                        origin.contains(".") -> origin  // Already has domain
+                        origin.contains(":") -> origin  // host:port format
+                        else -> "$origin.onrender.com"  // Render service name, append domain
+                    }
+                    val normalizedOrigin = when {
+                        expandedOrigin.startsWith("http://") || expandedOrigin.startsWith("https://") -> expandedOrigin
+                        expandedOrigin.contains(":") -> "https://$expandedOrigin"  // host:port format
+                        else -> "https://$expandedOrigin"  // hostname only, assume HTTPS
                     }
 
                     val uri = java.net.URI(normalizedOrigin)
