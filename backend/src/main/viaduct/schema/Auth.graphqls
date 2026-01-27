@@ -1,0 +1,102 @@
+"""
+Authentication session containing tokens and user info.
+"""
+type AuthSession @scope(to: ["public"]) {
+  """
+  JWT access token for authenticated requests.
+  """
+  accessToken: String!
+
+  """
+  Refresh token for obtaining new access tokens.
+  """
+  refreshToken: String!
+
+  """
+  Access token expiration time in seconds.
+  """
+  expiresIn: Int!
+
+  """
+  The authenticated user.
+  """
+  user: AuthUser!
+}
+
+"""
+User information from authentication.
+"""
+type AuthUser @scope(to: ["public"]) {
+  """
+  The user's unique identifier.
+  """
+  id: ID!
+
+  """
+  The user's email address.
+  """
+  email: String!
+}
+
+"""
+Input for signing in with email and password.
+"""
+input SignInInput @scope(to: ["public"]) {
+  email: String!
+  password: String!
+}
+
+"""
+Input for signing up with email and password.
+"""
+input SignUpInput @scope(to: ["public"]) {
+  email: String!
+  password: String!
+}
+
+"""
+Input for refreshing an access token.
+"""
+input RefreshTokenInput @scope(to: ["public"]) {
+  refreshToken: String!
+}
+
+extend type Mutation @scope(to: ["public"]) {
+  """
+  Sign in with email and password. Returns session tokens.
+  """
+  signIn(input: SignInInput!): AuthSession! @resolver
+
+  """
+  Sign up with email and password. Returns session tokens.
+  """
+  signUp(input: SignUpInput!): AuthSession! @resolver
+
+  """
+  Refresh an access token using a refresh token.
+  """
+  refreshToken(input: RefreshTokenInput!): AuthSession! @resolver
+}
+
+extend type Query @scope(to: ["public"]) {
+  """
+  Get Supabase configuration for client initialization.
+  Only returns the public URL and anon key (safe to expose).
+  """
+  supabaseConfig: SupabaseConfig! @resolver
+}
+
+"""
+Public Supabase configuration (safe to expose to clients).
+"""
+type SupabaseConfig @scope(to: ["public"]) {
+  """
+  The Supabase project URL.
+  """
+  url: String!
+
+  """
+  The Supabase anonymous/public key.
+  """
+  anonKey: String!
+}

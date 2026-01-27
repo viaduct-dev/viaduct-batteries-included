@@ -7,8 +7,9 @@ import com.viaduct.config.RequestContext
 import com.viaduct.config.appModule
 import com.viaduct.models.GraphQLRequest
 import com.viaduct.plugins.GraphQLAuthentication
+import com.viaduct.plugins.cachedRequestBody
+import com.viaduct.plugins.isPublicOperation
 import com.viaduct.plugins.requestContext
-import com.viaduct.policy.GroupMembershipCheckerFactory
 import com.viaduct.services.AuthService
 import com.viaduct.services.GroupService
 import io.ktor.client.*
@@ -27,10 +28,12 @@ import org.koin.ktor.plugin.scope
 import org.koin.ktor.ext.get
 import org.koin.ktor.ext.getKoin
 import org.koin.logger.slf4jLogger
-import viaduct.api.bootstrap.ViaductTenantAPIBootstrapper
-import viaduct.service.runtime.SchemaRegistryConfiguration
-import viaduct.service.runtime.StandardViaduct
+import viaduct.service.BasicViaductFactory
+import viaduct.service.TenantRegistrationInfo
+import viaduct.service.SchemaRegistrationInfo
+import viaduct.service.SchemaScopeInfo
 import viaduct.service.api.ExecutionInput as ViaductExecutionInput
+import viaduct.service.api.SchemaId
 
 private val logger = org.slf4j.LoggerFactory.getLogger("Application")
 
@@ -117,27 +120,20 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String, c
     val groupService = koin.get<GroupService>()
     val supabaseService = koin.get<SupabaseService>()
 
-    // Build Viaduct service using StandardViaduct.Builder
-    // Register CheckerExecutorFactory for policy checks
-    val viaduct = StandardViaduct.Builder()
-        .withTenantAPIBootstrapperBuilder(
-            ViaductTenantAPIBootstrapper.Builder()
-                .tenantPackagePrefix("com.viaduct")
-                .tenantCodeInjector(koinInjector)
-        )
-        .withSchemaRegistryConfiguration(
-            SchemaRegistryConfiguration.fromResources(
-                scopes = setOf(
-                    SchemaRegistryConfiguration.ScopeConfig("default", setOf("default")),
-                    SchemaRegistryConfiguration.ScopeConfig("admin", setOf("default", "admin"))
-                ),
-                fullSchemaIds = listOf("default")
+    // Build Viaduct service using BasicViaductFactory
+    val viaduct = BasicViaductFactory.create(
+        schemaRegistrationInfo = SchemaRegistrationInfo(
+            scopes = listOf(
+                SchemaScopeInfo("public", setOf("public")),
+                SchemaScopeInfo("default", setOf("default", "public")),
+                SchemaScopeInfo("admin", setOf("default", "admin", "public"))
             )
+        ),
+        tenantRegistrationInfo = TenantRegistrationInfo(
+            tenantPackagePrefix = "com.viaduct",
+            tenantCodeInjector = koinInjector
         )
-        .withCheckerExecutorFactoryCreator { schema ->
-            GroupMembershipCheckerFactory(schema, groupService)
-        }
-        .build()
+    )
 
     // Install CORS plugin (with idempotency check for test compatibility)
     if (pluginOrNull(CORS) == null) {
@@ -188,27 +184,40 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String, c
 
     routing {
         post("/graphql") {
-            // Type-safe deserialization of GraphQL request
-            val requestBody = call.receiveText()
+            // Get request body - either from cache (if auth plugin already read it) or fresh
+            val requestBody = call.cachedRequestBody ?: call.receiveText()
             val request = objectMapper.readValue(requestBody, GraphQLRequest::class.java)
 
-            // Get RequestContext - authentication is already handled by the plugin
-            val requestContextWrapper = call.requestContext
+            // Check if this is a public operation (no auth required)
+            val schemaId: SchemaId
+            val requestContext: Any?
 
-            // Use AuthService to determine schema ID
-            val schemaId = authService.getSchemaId(requestContextWrapper.graphQLContext)
+            if (call.isPublicOperation) {
+                // Public operations use the "public" schema and no request context
+                schemaId = SchemaId.Scoped("public", setOf("public"))
+                requestContext = null
+            } else {
+                // Get RequestContext - authentication is already handled by the plugin
+                val requestContextWrapper = call.requestContext
 
-            // Build Viaduct ExecutionInput - pass the RequestContext wrapper
-            // Viaduct will pass this to all resolvers and policy executors
+                // Use AuthService to determine schema ID
+                val schemaIdStr = authService.getSchemaId(requestContextWrapper.graphQLContext)
+                schemaId = when (schemaIdStr) {
+                    "admin" -> SchemaId.Scoped("admin", setOf("default", "admin", "public"))
+                    else -> SchemaId.Scoped("default", setOf("default", "public"))
+                }
+                requestContext = requestContextWrapper
+            }
+
+            // Build Viaduct ExecutionInput
             val executionInput = ViaductExecutionInput.create(
-                schemaId = schemaId,
                 operationText = request.query,
                 variables = request.variables,
-                requestContext = requestContextWrapper // Pass the typed wrapper!
+                requestContext = requestContext
             )
 
             // Execute GraphQL query
-            val result = viaduct.execute(executionInput)
+            val result = viaduct.execute(executionInput, schemaId)
 
             // Ktor's ContentNegotiation automatically serializes the response to JSON
             call.respond(HttpStatusCode.OK, result.toSpecification())

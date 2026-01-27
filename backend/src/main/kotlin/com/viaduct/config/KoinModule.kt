@@ -69,6 +69,12 @@ fun appModule(supabaseUrl: String, supabaseKey: String) = module {
         }
     }
 
+    // Resolvers - Auth (public, no authentication required)
+    singleOf(::SignInResolver)
+    singleOf(::SignUpResolver)
+    singleOf(::RefreshTokenResolver)
+    singleOf(::SupabaseConfigResolver)
+
     // Resolvers - Admin
     singleOf(::PingQueryResolver)
     singleOf(::SetUserAdminResolver)

@@ -1,6 +1,7 @@
 package com.viaduct.services
 
 import com.viaduct.AuthenticatedSupabaseClient
+import com.viaduct.AuthSessionResponse
 import com.viaduct.GraphQLRequestContext
 import com.viaduct.SupabaseService
 import io.github.jan.supabase.auth.user.UserInfo
@@ -84,4 +85,38 @@ class AuthService(
     fun getSchemaId(requestContext: GraphQLRequestContext): String {
         return if (requestContext.isAdmin) "admin" else "default"
     }
+
+    /**
+     * Sign in with email and password.
+     * Returns auth session with tokens.
+     */
+    suspend fun signIn(email: String, password: String): AuthSessionResponse {
+        return supabaseService.signIn(email, password)
+    }
+
+    /**
+     * Sign up with email and password.
+     * Returns auth session with tokens.
+     */
+    suspend fun signUp(email: String, password: String): AuthSessionResponse {
+        return supabaseService.signUp(email, password)
+    }
+
+    /**
+     * Refresh an access token using a refresh token.
+     * Returns new auth session with tokens.
+     */
+    suspend fun refreshToken(refreshToken: String): AuthSessionResponse {
+        return supabaseService.refreshToken(refreshToken)
+    }
+
+    /**
+     * Get the Supabase URL (for public config endpoint)
+     */
+    fun getSupabaseUrl(): String = supabaseService.supabaseUrl
+
+    /**
+     * Get the Supabase anon key (for public config endpoint)
+     */
+    fun getSupabaseAnonKey(): String = supabaseService.supabaseKey
 }
