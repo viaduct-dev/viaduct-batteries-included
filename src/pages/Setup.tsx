@@ -12,10 +12,14 @@ interface SetupStatus {
   message: string;
 }
 
-export default function Setup() {
+interface SetupProps {
+  error?: string | null;
+}
+
+export default function Setup({ error: initError }: SetupProps = {}) {
   const [backendStatus, setBackendStatus] = useState<SetupStatus | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initError || null);
 
   const graphqlEndpoint = import.meta.env.VITE_GRAPHQL_ENDPOINT || "http://localhost:8080/graphql";
   const backendUrl = graphqlEndpoint.replace("/graphql", "");

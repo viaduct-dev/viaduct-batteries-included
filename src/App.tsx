@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,13 +8,49 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Setup from "./pages/Setup";
 import NotFound from "./pages/NotFound";
-import { supabaseConfigured } from "@/integrations/supabase/client";
+import { initSupabase, supabaseConfigured } from "@/integrations/supabase/client";
 
 const queryClient = new QueryClient();
 
 const App = () => {
-  // Show setup page if Supabase isn't configured
-  if (!supabaseConfigured) {
+  const [isInitializing, setIsInitializing] = useState(!supabaseConfigured);
+  const [initError, setInitError] = useState<string | null>(null);
+  const [isReady, setIsReady] = useState(supabaseConfigured);
+
+  // Initialize Supabase on mount if not using local config
+  useEffect(() => {
+    if (supabaseConfigured) {
+      // Local config available, already initialized
+      return;
+    }
+
+    // Fetch config from backend
+    initSupabase()
+      .then(() => {
+        setIsReady(true);
+        setIsInitializing(false);
+      })
+      .catch((error) => {
+        console.error('[App] Failed to initialize Supabase:', error);
+        setInitError(error.message);
+        setIsInitializing(false);
+      });
+  }, []);
+
+  // Show loading state while initializing
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Connecting to backend...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show setup page if initialization failed or not configured
+  if (initError || !isReady) {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
@@ -21,7 +58,7 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <Routes>
-              <Route path="*" element={<Setup />} />
+              <Route path="*" element={<Setup error={initError} />} />
             </Routes>
           </BrowserRouter>
         </TooltipProvider>

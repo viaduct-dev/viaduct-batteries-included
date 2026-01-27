@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { getSupabase } from "@/integrations/supabase/client";
 
 interface GraphQLResponse<T> {
   data?: T;
@@ -46,6 +46,7 @@ export async function executeGraphQL<T>(query: string, variables?: Record<string
   let session = null;
   let attempts = 0;
   const maxAttempts = 10;
+  const supabase = getSupabase();
 
   while (!session && attempts < maxAttempts) {
     const { data, error } = await supabase.auth.getSession();
@@ -239,3 +240,44 @@ export const REMOVE_GROUP_MEMBER = `
     })
   }
 `;
+
+// ----------------------------------------------------------------------------
+// Supabase Configuration (Public - no auth required)
+// ----------------------------------------------------------------------------
+
+export const GET_SUPABASE_CONFIG = `
+  query GetSupabaseConfig {
+    supabaseConfig {
+      url
+      anonKey
+    }
+  }
+`;
+
+/**
+ * Fetch Supabase configuration from the backend.
+ * This is a public endpoint that doesn't require authentication.
+ */
+export async function fetchSupabaseConfig(): Promise<{ url: string; anonKey: string }> {
+  const response = await fetch(GRAPHQL_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query: GET_SUPABASE_CONFIG,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Supabase config: ${response.status}`);
+  }
+
+  const result = await response.json();
+
+  if (result.errors) {
+    throw new Error(result.errors[0]?.message || "Failed to fetch Supabase config");
+  }
+
+  return result.data.supabaseConfig;
+}

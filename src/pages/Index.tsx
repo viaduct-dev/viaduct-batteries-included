@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { getSupabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { UserList } from "@/components/UserList";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ const Index = () => {
   const { toast } = useToast();
 
   useEffect(() => {
+    const supabase = getSupabase();
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user?.app_metadata?.is_admin) {
@@ -81,6 +82,7 @@ const Index = () => {
   };
 
   const handleSignOut = async () => {
+    const supabase = getSupabase();
     await supabase.auth.signOut();
     navigate("/auth");
   };

@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Users, Trash2, Shield, ShieldOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { getSupabase } from "@/integrations/supabase/client";
 import { executeGraphQL, GET_USERS, DELETE_USER, SET_USER_ADMIN } from "@/lib/graphql";
 import {
   AlertDialog,
@@ -36,6 +36,7 @@ export const UserList = () => {
       setLoading(true);
 
       // Get current user's session
+      const supabase = getSupabase();
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setCurrentUserId(session.user.id);

@@ -47,12 +47,8 @@ services:
     staticPublishPath: ./dist
     plan: free
     envVars:
-      # Supabase credentials for auth (same values as backend)
-      - key: VITE_SUPABASE_URL
-        sync: false  # Same as SUPABASE_URL
-      - key: VITE_SUPABASE_PUBLISHABLE_KEY
-        sync: false  # Same as SUPABASE_ANON_KEY
       # Auto-link to backend GraphQL endpoint
+      # Frontend fetches Supabase config from backend at runtime
       - key: VITE_GRAPHQL_ENDPOINT
         fromService:
           name: viaduct-backend
