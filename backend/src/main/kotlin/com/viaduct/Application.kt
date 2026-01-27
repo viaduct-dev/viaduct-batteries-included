@@ -47,7 +47,10 @@ fun extractProjectRefFromKey(key: String): String? {
     return try {
         // JWT format: header.payload.signature
         val parts = key.split(".")
-        if (parts.size != 3) return null
+        if (parts.size != 3) {
+            logger.warn("JWT key does not have 3 parts, got ${parts.size}")
+            return null
+        }
 
         // Decode the payload (second part), handling URL-safe base64
         val payload = parts[1]
@@ -58,9 +61,13 @@ fun extractProjectRefFromKey(key: String): String? {
         }
         val decoded = Base64.getUrlDecoder().decode(paddedPayload)
         val json = String(decoded)
+        logger.info("JWT payload: $json")
 
         // Simple JSON parsing for "ref" field
         val refMatch = Regex(""""ref"\s*:\s*"([^"]+)"""").find(json)
+        if (refMatch == null) {
+            logger.warn("No 'ref' field found in JWT payload")
+        }
         refMatch?.groupValues?.get(1)
     } catch (e: Exception) {
         logger.warn("Failed to extract project ref from key: ${e.message}")
