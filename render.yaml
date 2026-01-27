@@ -19,7 +19,8 @@ services:
     envVars:
       # Supabase credentials - user will be prompted for these during deploy
       # Find these in Supabase Dashboard → Settings → API
-      # Note: SUPABASE_URL is derived from the publishable key automatically
+      - key: SUPABASE_URL
+        sync: false
       - key: SUPABASE_PUBLISHABLE_KEY
         sync: false
       - key: SUPABASE_SECRET_KEY
