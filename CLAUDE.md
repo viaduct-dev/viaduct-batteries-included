@@ -319,13 +319,14 @@ This project includes a `render.yaml` blueprint for one-click deployment to [Ren
 1. Click the "Deploy to Render" button in the README
 2. Connect your GitHub repository
 3. Enter your Supabase credentials when prompted (just 3 values!):
-   - `SUPABASE_URL` - Your project URL
-   - `SUPABASE_ANON_KEY` - Public/anon key
-   - `SUPABASE_SERVICE_ROLE_KEY` - Service role key
+   - `SUPABASE_PROJECT_ID` - Your project's Reference ID
+   - `SUPABASE_ANON_KEY` - Legacy anon key (JWT format, starts with `eyJ`)
+   - `SUPABASE_SERVICE_ROLE_KEY` - Legacy service_role key (JWT format)
 4. Click "Apply" - Render handles the rest!
 
 **What's automatic:**
 - **Database migrations** run on every deploy
+- **Supabase URL** derived from project ID
 - **Frontend config** derived from backend credentials
 - Backend and frontend URLs are auto-linked
 - CORS is auto-configured between services
@@ -335,15 +336,17 @@ This project includes a `render.yaml` blueprint for one-click deployment to [Ren
 1. Go to your [Supabase Dashboard](https://app.supabase.com)
 2. Create a new project (or select existing)
 3. **Enable Email Auth**: Go to **Authentication** → **Providers** → **Email** → Enable
-4. **Get API credentials**: Go to **Settings** → **API** and copy:
-   - **Project URL** → `SUPABASE_URL`
-   - **anon public** key → `SUPABASE_ANON_KEY`
-   - **service_role** key → `SUPABASE_SERVICE_ROLE_KEY`
+4. **Get Project ID**: Go to **Settings** → **General** and copy **Reference ID** → `SUPABASE_PROJECT_ID`
+5. **Get API credentials**: Go to **Settings** → **API** and scroll to **"legacy anon, service_role API Keys"** section:
+   - **anon** key → `SUPABASE_ANON_KEY` (starts with `eyJ`)
+   - **service_role** key → `SUPABASE_SERVICE_ROLE_KEY` (starts with `eyJ`)
+
+   **Important**: Use the keys from the "legacy" section, NOT the "Publishable API keys" section. The Supabase client libraries require JWT-format keys.
 
 ### Database Migrations
 
 **Migrations run automatically** on every deploy! The backend:
-1. Derives the database connection from `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
+1. Derives the database connection from `SUPABASE_PROJECT_ID` + `SUPABASE_SERVICE_ROLE_KEY`
 2. Runs all pending migrations from `supabase/migrations/`
 3. Tracks applied migrations in a `schema_migrations` table
 

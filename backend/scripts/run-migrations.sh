@@ -7,9 +7,8 @@ set -e
 MIGRATIONS_DIR="/app/migrations"
 MIGRATION_TABLE="schema_migrations"
 
-# Support both old and new env var names
-SUPABASE_KEY="${SUPABASE_PUBLISHABLE_KEY:-$SUPABASE_ANON_KEY}"
-SUPABASE_SECRET="${SUPABASE_SECRET_KEY:-$SUPABASE_SERVICE_ROLE_KEY}"
+SUPABASE_KEY="$SUPABASE_ANON_KEY"
+SUPABASE_SECRET="$SUPABASE_SERVICE_ROLE_KEY"
 
 # Extract project ref from JWT key (the "ref" claim in the JWT payload)
 extract_project_ref() {

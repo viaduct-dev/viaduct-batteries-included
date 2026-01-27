@@ -110,9 +110,7 @@ fun deriveSupabaseUrl(explicitUrl: String?, projectId: String?, anonKey: String?
  * Configure the Ktor application with GraphQL and authentication
  */
 fun Application.module() {
-    // Support both old and new env var names for backwards compatibility
-    val supabaseKey = System.getenv("SUPABASE_PUBLISHABLE_KEY")
-        ?: System.getenv("SUPABASE_ANON_KEY")
+    val supabaseKey = System.getenv("SUPABASE_ANON_KEY")
     val supabaseProjectId = System.getenv("SUPABASE_PROJECT_ID")
     val supabaseUrl = deriveSupabaseUrl(System.getenv("SUPABASE_URL"), supabaseProjectId, supabaseKey)
 
@@ -121,10 +119,10 @@ fun Application.module() {
 
     if (!configurationComplete) {
         logger.warn("=" .repeat(60))
-        logger.warn("SUPABASE_PUBLISHABLE_KEY is not set!")
+        logger.warn("SUPABASE_ANON_KEY is not set!")
         logger.warn("The server will start but GraphQL queries will fail.")
-        logger.warn("Set SUPABASE_PUBLISHABLE_KEY environment variable to enable full functionality.")
-        logger.warn("Get your key from: https://supabase.com/dashboard → Settings → API")
+        logger.warn("Set SUPABASE_ANON_KEY environment variable to enable full functionality.")
+        logger.warn("Get your key from: https://supabase.com/dashboard → Settings → API → 'legacy anon, service_role API Keys'")
         logger.warn("=" .repeat(60))
     }
 
@@ -317,16 +315,16 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String, c
             val status = mapOf(
                 "configured" to configurationComplete,
                 "supabaseUrl" to supabaseUrl,
-                "supabaseUrlSource" to if (System.getenv("SUPABASE_URL") != null) "environment" else "derived from publishable key",
-                "supabasePublishableKey" to (System.getenv("SUPABASE_PUBLISHABLE_KEY") != null || System.getenv("SUPABASE_ANON_KEY") != null),
-                "supabaseSecretKey" to (System.getenv("SUPABASE_SECRET_KEY") != null || System.getenv("SUPABASE_SERVICE_ROLE_KEY") != null),
+                "supabaseUrlSource" to if (System.getenv("SUPABASE_URL") != null) "environment" else "derived from project ID or anon key",
+                "supabaseAnonKey" to (System.getenv("SUPABASE_ANON_KEY") != null),
+                "supabaseServiceRoleKey" to (System.getenv("SUPABASE_SERVICE_ROLE_KEY") != null),
                 "allowedOrigins" to (System.getenv("ALLOWED_ORIGINS") ?: "localhost defaults"),
                 "message" to if (configurationComplete) {
                     "All required configuration is set. The API is ready to use."
                 } else {
-                    "Missing required configuration. Set SUPABASE_PUBLISHABLE_KEY to enable GraphQL queries."
+                    "Missing required configuration. Set SUPABASE_ANON_KEY to enable GraphQL queries."
                 },
-                "docs" to "https://supabase.com/dashboard → Settings → API"
+                "docs" to "https://supabase.com/dashboard → Settings → API → 'legacy anon, service_role API Keys'"
             )
             call.respond(HttpStatusCode.OK, status)
         }
