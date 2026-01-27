@@ -8,10 +8,6 @@ const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 // Check if we have local config
 const hasLocalConfig = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
-// Singleton instance
-let supabaseInstance: SupabaseClient<Database> | null = null;
-let initPromise: Promise<SupabaseClient<Database>> | null = null;
-
 /**
  * Create Supabase client with the given config.
  */
@@ -24,6 +20,12 @@ function createSupabaseClient(url: string, key: string): SupabaseClient<Database
     }
   });
 }
+
+// Singleton instance - initialize immediately if we have local config
+let supabaseInstance: SupabaseClient<Database> | null = hasLocalConfig
+  ? createSupabaseClient(SUPABASE_URL!, SUPABASE_PUBLISHABLE_KEY!)
+  : null;
+let initPromise: Promise<SupabaseClient<Database>> | null = null;
 
 /**
  * Initialize Supabase client.
@@ -42,10 +44,9 @@ export async function initSupabase(): Promise<SupabaseClient<Database>> {
   }
 
   initPromise = (async () => {
-    // Use local config if available
-    if (hasLocalConfig) {
+    // Use local config if available (already initialized above)
+    if (hasLocalConfig && supabaseInstance) {
       console.log('[Supabase] Using local environment configuration');
-      supabaseInstance = createSupabaseClient(SUPABASE_URL!, SUPABASE_PUBLISHABLE_KEY!);
       return supabaseInstance;
     }
 
@@ -83,12 +84,10 @@ export function getSupabase(): SupabaseClient<Database> {
 
 /**
  * Legacy export for backward compatibility.
- * Creates a placeholder client if not configured.
- * Prefer using initSupabase() and getSupabase() for new code.
+ * Uses the singleton instance if available, otherwise creates a placeholder.
  */
-export const supabase = hasLocalConfig
-  ? createSupabaseClient(SUPABASE_URL!, SUPABASE_PUBLISHABLE_KEY!)
-  : createSupabaseClient('https://placeholder.supabase.co', 'placeholder-key');
+export const supabase = supabaseInstance
+  ?? createSupabaseClient('https://placeholder.supabase.co', 'placeholder-key');
 
 // Export configuration status
 export const supabaseConfigured = hasLocalConfig;

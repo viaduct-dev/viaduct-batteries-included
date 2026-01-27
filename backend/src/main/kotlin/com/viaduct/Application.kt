@@ -34,24 +34,81 @@ import viaduct.service.SchemaRegistrationInfo
 import viaduct.service.SchemaScopeInfo
 import viaduct.service.api.ExecutionInput as ViaductExecutionInput
 import viaduct.service.api.SchemaId
+import java.util.Base64
 
 private val logger = org.slf4j.LoggerFactory.getLogger("Application")
+
+/**
+ * Extract the project reference from a Supabase JWT key.
+ * Supabase JWTs contain a "ref" claim with the project reference.
+ * Returns null if the key is invalid or doesn't contain a ref.
+ */
+fun extractProjectRefFromKey(key: String): String? {
+    return try {
+        // JWT format: header.payload.signature
+        val parts = key.split(".")
+        if (parts.size != 3) return null
+
+        // Decode the payload (second part), handling URL-safe base64
+        val payload = parts[1]
+        val paddedPayload = when (payload.length % 4) {
+            2 -> "$payload=="
+            3 -> "$payload="
+            else -> payload
+        }
+        val decoded = Base64.getUrlDecoder().decode(paddedPayload)
+        val json = String(decoded)
+
+        // Simple JSON parsing for "ref" field
+        val refMatch = Regex(""""ref"\s*:\s*"([^"]+)"""").find(json)
+        refMatch?.groupValues?.get(1)
+    } catch (e: Exception) {
+        logger.warn("Failed to extract project ref from key: ${e.message}")
+        null
+    }
+}
+
+/**
+ * Derive the Supabase URL from the anon key if not explicitly provided.
+ * For hosted Supabase, the URL format is https://{project-ref}.supabase.co
+ */
+fun deriveSupabaseUrl(explicitUrl: String?, anonKey: String?): String {
+    // If explicit URL is provided, use it
+    if (!explicitUrl.isNullOrBlank()) {
+        return explicitUrl
+    }
+
+    // Try to derive from the anon key
+    if (anonKey != null) {
+        val projectRef = extractProjectRefFromKey(anonKey)
+        if (projectRef != null) {
+            val derivedUrl = "https://$projectRef.supabase.co"
+            logger.info("Derived Supabase URL from anon key: $derivedUrl")
+            return derivedUrl
+        }
+    }
+
+    // Fall back to local development URL
+    return "http://127.0.0.1:54321"
+}
 
 /**
  * Configure the Ktor application with GraphQL and authentication
  */
 fun Application.module() {
-    val supabaseUrl = System.getenv("SUPABASE_URL") ?: "http://127.0.0.1:54321"
-    val supabaseKey = System.getenv("SUPABASE_ANON_KEY")
+    // Support both old and new env var names for backwards compatibility
+    val supabaseKey = System.getenv("SUPABASE_PUBLISHABLE_KEY")
+        ?: System.getenv("SUPABASE_ANON_KEY")
+    val supabaseUrl = deriveSupabaseUrl(System.getenv("SUPABASE_URL"), supabaseKey)
 
     // Graceful handling of missing configuration
     val configurationComplete = supabaseKey != null
 
     if (!configurationComplete) {
         logger.warn("=" .repeat(60))
-        logger.warn("SUPABASE_ANON_KEY is not set!")
+        logger.warn("SUPABASE_PUBLISHABLE_KEY is not set!")
         logger.warn("The server will start but GraphQL queries will fail.")
-        logger.warn("Set SUPABASE_ANON_KEY environment variable to enable full functionality.")
+        logger.warn("Set SUPABASE_PUBLISHABLE_KEY environment variable to enable full functionality.")
         logger.warn("Get your key from: https://supabase.com/dashboard → Settings → API")
         logger.warn("=" .repeat(60))
     }
@@ -237,14 +294,15 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String, c
         get("/setup") {
             val status = mapOf(
                 "configured" to configurationComplete,
-                "supabaseUrl" to (System.getenv("SUPABASE_URL") != null),
-                "supabaseAnonKey" to (System.getenv("SUPABASE_ANON_KEY") != null),
-                "supabaseServiceRoleKey" to (System.getenv("SUPABASE_SERVICE_ROLE_KEY") != null),
+                "supabaseUrl" to supabaseUrl,
+                "supabaseUrlSource" to if (System.getenv("SUPABASE_URL") != null) "environment" else "derived from publishable key",
+                "supabasePublishableKey" to (System.getenv("SUPABASE_PUBLISHABLE_KEY") != null || System.getenv("SUPABASE_ANON_KEY") != null),
+                "supabaseSecretKey" to (System.getenv("SUPABASE_SECRET_KEY") != null || System.getenv("SUPABASE_SERVICE_ROLE_KEY") != null),
                 "allowedOrigins" to (System.getenv("ALLOWED_ORIGINS") ?: "localhost defaults"),
                 "message" to if (configurationComplete) {
                     "All required configuration is set. The API is ready to use."
                 } else {
-                    "Missing required configuration. Set SUPABASE_ANON_KEY to enable GraphQL queries."
+                    "Missing required configuration. Set SUPABASE_PUBLISHABLE_KEY to enable GraphQL queries."
                 },
                 "docs" to "https://supabase.com/dashboard → Settings → API"
             )

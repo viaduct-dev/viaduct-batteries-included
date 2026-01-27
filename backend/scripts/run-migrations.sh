@@ -7,25 +7,48 @@ set -e
 MIGRATIONS_DIR="/app/migrations"
 MIGRATION_TABLE="schema_migrations"
 
+# Support both old and new env var names
+SUPABASE_KEY="${SUPABASE_PUBLISHABLE_KEY:-$SUPABASE_ANON_KEY}"
+SUPABASE_SECRET="${SUPABASE_SECRET_KEY:-$SUPABASE_SERVICE_ROLE_KEY}"
+
+# Extract project ref from JWT key (the "ref" claim in the JWT payload)
+extract_project_ref() {
+    local key="$1"
+    # JWT is base64url encoded, split by dots: header.payload.signature
+    local payload=$(echo "$key" | cut -d'.' -f2)
+    # Add padding if needed and decode
+    local padded_payload="$payload"
+    case $((${#payload} % 4)) in
+        2) padded_payload="${payload}==" ;;
+        3) padded_payload="${payload}=" ;;
+    esac
+    # Decode and extract "ref" field
+    echo "$padded_payload" | base64 -d 2>/dev/null | grep -o '"ref":"[^"]*"' | cut -d'"' -f4
+}
+
 # Construct DATABASE_URL from Supabase credentials if not explicitly set
 if [ -z "$DATABASE_URL" ]; then
-    if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-        # Extract project ref from SUPABASE_URL
-        # https://abcdefghijkl.supabase.co -> abcdefghijkl
-        PROJECT_REF=$(echo "$SUPABASE_URL" | sed -E 's|https?://([^.]+)\.supabase\.co.*|\1|')
+    if [ -n "$SUPABASE_SECRET" ]; then
+        # Try to get project ref from explicit URL first, then from the publishable key
+        if [ -n "$SUPABASE_URL" ]; then
+            PROJECT_REF=$(echo "$SUPABASE_URL" | sed -E 's|https?://([^.]+)\.supabase\.co.*|\1|')
+        elif [ -n "$SUPABASE_KEY" ]; then
+            PROJECT_REF=$(extract_project_ref "$SUPABASE_KEY")
+            echo "[Migrations] Extracted project ref from publishable key"
+        fi
 
         if [ -n "$PROJECT_REF" ] && [ "$PROJECT_REF" != "$SUPABASE_URL" ]; then
             # Construct database URL using Supabase's direct connection
             # Format: postgresql://postgres.[ref]:[key]@db.[ref].supabase.co:5432/postgres
-            DATABASE_URL="postgresql://postgres.${PROJECT_REF}:${SUPABASE_SERVICE_ROLE_KEY}@db.${PROJECT_REF}.supabase.co:5432/postgres"
+            DATABASE_URL="postgresql://postgres.${PROJECT_REF}:${SUPABASE_SECRET}@db.${PROJECT_REF}.supabase.co:5432/postgres"
             echo "[Migrations] Constructed database URL from Supabase credentials"
         else
-            echo "[Migrations] Could not extract project ref from SUPABASE_URL"
+            echo "[Migrations] Could not extract project ref from credentials"
             echo "[Migrations] Skipping migrations"
             exit 0
         fi
     else
-        echo "[Migrations] SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set"
+        echo "[Migrations] SUPABASE_SECRET_KEY not set"
         echo "[Migrations] Skipping migrations - run manually with: supabase db push"
         exit 0
     fi

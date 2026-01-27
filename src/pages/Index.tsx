@@ -127,8 +127,8 @@ const Index = () => {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>My Groups & Blogs</CardTitle>
-                <CardDescription>Groups you're a member of and their blogs</CardDescription>
+                <CardTitle>My Groups</CardTitle>
+                <CardDescription>Groups you're a member of</CardDescription>
               </div>
               <Button onClick={handleCreateGroup} size="sm">
                 <Plus className="h-4 w-4 mr-2" />

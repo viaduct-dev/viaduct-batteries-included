@@ -5,17 +5,6 @@
 # 1. A Supabase project (https://supabase.com)
 # 2. Supabase URL and API keys from Settings → API in your Supabase dashboard
 
-# Environment group to share Supabase credentials between services
-envVarGroups:
-  - name: supabase-credentials
-    envVars:
-      - key: SUPABASE_URL
-        sync: false  # Prompts user during deploy
-      - key: SUPABASE_ANON_KEY
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-
 services:
   # Viaduct GraphQL Backend (Kotlin/Ktor)
   # NOTE: JVM requires ~300-400MB RAM. Free tier (512MB) fits but spins down after inactivity.
@@ -28,32 +17,36 @@ services:
     healthCheckPath: /health
     plan: free
     envVars:
-      # Supabase credentials from shared group
-      - fromGroup: supabase-credentials
+      # Supabase credentials - user will be prompted for these during deploy
+      # Find these in Supabase Dashboard → Settings → API
+      # Note: SUPABASE_URL is derived from the publishable key automatically
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
       # CORS: Auto-configured to allow the frontend service
       - key: ALLOWED_ORIGINS
         fromService:
           name: viaduct-frontend
           type: web
           property: host
-        # Render provides just the hostname, we need to add https://
-        # The app handles this by accepting hostname and constructing URL
 
   # React Frontend (Static Site)
+  # Note: Static sites are always free on Render, no plan field needed
   - type: web
     name: viaduct-frontend
     runtime: static
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
-    plan: free
     envVars:
       # Auto-link to backend GraphQL endpoint
       # Frontend fetches Supabase config from backend at runtime
+      # Uses 'host' (public URL) not 'hostport' (internal service discovery)
       - key: VITE_GRAPHQL_ENDPOINT
         fromService:
           name: viaduct-backend
           type: web
-          property: hostport
+          property: host
     headers:
       - path: /*
         name: X-Frame-Options

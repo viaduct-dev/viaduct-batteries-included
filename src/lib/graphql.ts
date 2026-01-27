@@ -11,6 +11,7 @@ interface GraphQLResponse<T> {
  * - Full URL: https://example.com/graphql
  * - Host:port from Render: example.onrender.com:443
  * - Hostname only: example.onrender.com
+ * - Internal Render hostname: viaduct-backend:10000 (derives public URL from current location)
  * - Local development: http://localhost:8080/graphql
  */
 function normalizeGraphQLEndpoint(endpoint: string | undefined): string {
@@ -22,6 +23,20 @@ function normalizeGraphQLEndpoint(endpoint: string | undefined): string {
   if (endpoint.startsWith("http://") || endpoint.startsWith("https://")) {
     // Ensure it ends with /graphql
     return endpoint.endsWith("/graphql") ? endpoint : `${endpoint}/graphql`;
+  }
+
+  // Check if this is an internal Render hostname (no dots, like "viaduct-backend:10000")
+  // These are internal service discovery names that browsers can't resolve
+  const hostPart = endpoint.split(":")[0];
+  if (!hostPart.includes(".") && typeof window !== "undefined") {
+    // Derive the backend URL from the frontend URL
+    // viaduct-frontend.onrender.com -> viaduct-backend.onrender.com
+    const currentHost = window.location.hostname;
+    if (currentHost.includes(".onrender.com")) {
+      const backendHost = currentHost.replace("-frontend", "-backend");
+      console.log(`[GraphQL] Detected internal hostname, using derived URL: https://${backendHost}/graphql`);
+      return `https://${backendHost}/graphql`;
+    }
   }
 
   // Host:port format (from Render's fromService.hostport)
