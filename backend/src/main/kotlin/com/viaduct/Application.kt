@@ -76,16 +76,23 @@ fun extractProjectRefFromKey(key: String): String? {
 }
 
 /**
- * Derive the Supabase URL from the anon key if not explicitly provided.
- * For hosted Supabase, the URL format is https://{project-ref}.supabase.co
+ * Derive the Supabase URL from project ID, explicit URL, or anon key.
+ * For hosted Supabase, the URL format is https://{project-id}.supabase.co
  */
-fun deriveSupabaseUrl(explicitUrl: String?, anonKey: String?): String {
+fun deriveSupabaseUrl(explicitUrl: String?, projectId: String?, anonKey: String?): String {
     // If explicit URL is provided, use it
     if (!explicitUrl.isNullOrBlank()) {
         return explicitUrl
     }
 
-    // Try to derive from the anon key
+    // If project ID is provided, construct the URL
+    if (!projectId.isNullOrBlank()) {
+        val derivedUrl = "https://$projectId.supabase.co"
+        logger.info("Derived Supabase URL from project ID: $derivedUrl")
+        return derivedUrl
+    }
+
+    // Try to derive from the anon key (legacy JWT keys only)
     if (anonKey != null) {
         val projectRef = extractProjectRefFromKey(anonKey)
         if (projectRef != null) {
@@ -106,7 +113,8 @@ fun Application.module() {
     // Support both old and new env var names for backwards compatibility
     val supabaseKey = System.getenv("SUPABASE_PUBLISHABLE_KEY")
         ?: System.getenv("SUPABASE_ANON_KEY")
-    val supabaseUrl = deriveSupabaseUrl(System.getenv("SUPABASE_URL"), supabaseKey)
+    val supabaseProjectId = System.getenv("SUPABASE_PROJECT_ID")
+    val supabaseUrl = deriveSupabaseUrl(System.getenv("SUPABASE_URL"), supabaseProjectId, supabaseKey)
 
     // Graceful handling of missing configuration
     val configurationComplete = supabaseKey != null

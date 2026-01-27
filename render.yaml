@@ -18,8 +18,10 @@ services:
     plan: free
     envVars:
       # Supabase credentials - user will be prompted for these during deploy
-      # Find these in Supabase Dashboard → Settings → API
-      # Note: SUPABASE_URL is derived from the publishable key automatically
+      # Project ID: Settings → General → Reference ID
+      - key: SUPABASE_PROJECT_ID
+        sync: false
+      # API Keys: Settings → API → Project API keys
       - key: SUPABASE_PUBLISHABLE_KEY
         sync: false
       - key: SUPABASE_SECRET_KEY
