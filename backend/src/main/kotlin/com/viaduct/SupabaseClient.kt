@@ -21,55 +21,11 @@ import kotlinx.serialization.Transient
 import kotlinx.serialization.json.Json
 
 @Serializable
-data class ChecklistItemEntity(
-    val id: String,
-    val title: String,
-    val completed: Boolean,
-    val user_id: String,
-    val group_id: String? = null,
-    val created_at: String,
-    val updated_at: String
-)
-
-@Serializable
-data class BlogPostEntity(
-    val id: String,
-    val group_id: String,
-    val user_id: String,
-    val title: String,
-    val slug: String,
-    val content: String,
-    val published: Boolean,
-    val created_at: String,
-    val updated_at: String
-)
-
-@Serializable
 data class UserEntity(
     val id: String,
     val email: String,
     val raw_app_meta_data: Map<String, kotlinx.serialization.json.JsonElement>? = null,
     val created_at: String
-)
-
-/**
- * Input for creating a new checklist item
- */
-@Serializable
-data class CreateChecklistItemInput(
-    val title: String,
-    val user_id: String,
-    val group_id: String? = null,
-    val completed: Boolean = false
-)
-
-/**
- * Input for updating a checklist item
- */
-@Serializable
-data class UpdateChecklistItemInput(
-    val completed: Boolean? = null,
-    val title: String? = null
 )
 
 /**
@@ -95,30 +51,6 @@ data class SearchUsersInput(
 @Serializable
 data class DeleteUserInput(
     val user_id: String
-)
-
-/**
- * Input for creating a new blog post
- */
-@Serializable
-data class CreateBlogPostInput(
-    val group_id: String,
-    val user_id: String,
-    val title: String,
-    val slug: String,
-    val content: String,
-    val published: Boolean = false
-)
-
-/**
- * Input for updating a blog post
- */
-@Serializable
-data class UpdateBlogPostInput(
-    val title: String? = null,
-    val slug: String? = null,
-    val content: String? = null,
-    val published: Boolean? = null
 )
 
 /**
@@ -309,84 +241,6 @@ class AuthenticatedSupabaseClient(
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
-     * Get all checklist items for the authenticated user
-     * RLS policies will automatically filter by the user's ID from the JWT
-     */
-    suspend fun getChecklistItems(): List<ChecklistItemEntity> {
-        return client.from("checklist_items")
-            .select()
-            .decodeList<ChecklistItemEntity>()
-    }
-
-    /**
-     * Get a checklist item by ID
-     * RLS policies will ensure the user can only access their own items
-     */
-    suspend fun getChecklistItemById(id: String): ChecklistItemEntity? {
-        return client.from("checklist_items")
-            .select {
-                filter {
-                    eq("id", id)
-                }
-            }
-            .decodeSingleOrNull<ChecklistItemEntity>()
-    }
-
-    /**
-     * Create a new checklist item
-     * RLS policies will automatically set user_id from the JWT
-     */
-    suspend fun createChecklistItem(title: String, userId: String, groupId: String? = null): ChecklistItemEntity {
-        return client.from("checklist_items")
-            .insert(
-                CreateChecklistItemInput(
-                    title = title,
-                    user_id = userId,
-                    group_id = groupId,
-                    completed = false
-                )
-            ) {
-                select()
-            }
-            .decodeSingle<ChecklistItemEntity>()
-    }
-
-    /**
-     * Update a checklist item
-     * RLS policies will ensure the user can only update their own items
-     */
-    suspend fun updateChecklistItem(
-        id: String,
-        completed: Boolean? = null,
-        title: String? = null
-    ): ChecklistItemEntity {
-        return client.from("checklist_items")
-            .update(
-                UpdateChecklistItemInput(completed = completed, title = title)
-            ) {
-                filter {
-                    eq("id", id)
-                }
-                select()
-            }
-            .decodeSingle<ChecklistItemEntity>()
-    }
-
-    /**
-     * Delete a checklist item
-     * RLS policies will ensure the user can only delete their own items
-     */
-    suspend fun deleteChecklistItem(id: String): Boolean {
-        client.from("checklist_items")
-            .delete {
-                filter {
-                    eq("id", id)
-                }
-            }
-        return true
-    }
-
-    /**
      * Set a user's admin status
      * Calls the set_user_admin PostgreSQL function
      * Only admins can call this (enforced by the database function)
@@ -469,20 +323,20 @@ class AuthenticatedSupabaseClient(
     }
 
     /**
-     * Get all checkbox groups the user is a member of
+     * Get all groups the user is a member of
      * Uses the Supabase Postgrest client which properly handles RLS policies
      */
-    suspend fun getCheckboxGroups(): List<com.viaduct.services.CheckboxGroupEntity> {
+    suspend fun getGroups(): List<com.viaduct.services.CheckboxGroupEntity> {
         return client.from("groups")
             .select()
             .decodeList<com.viaduct.services.CheckboxGroupEntity>()
     }
 
     /**
-     * Get a specific checkbox group by ID
+     * Get a specific group by ID
      * Uses the Supabase Postgrest client which properly handles RLS policies
      */
-    suspend fun getCheckboxGroupById(groupId: String): com.viaduct.services.CheckboxGroupEntity? {
+    suspend fun getGroupById(groupId: String): com.viaduct.services.CheckboxGroupEntity? {
         return client.from("groups")
             .select {
                 filter {
@@ -493,9 +347,9 @@ class AuthenticatedSupabaseClient(
     }
 
     /**
-     * Create a new checkbox group
+     * Create a new group
      */
-    suspend fun createCheckboxGroup(
+    suspend fun createGroup(
         name: String,
         description: String?,
         ownerId: String
@@ -561,144 +415,6 @@ class AuthenticatedSupabaseClient(
             parameter("group_id", "eq.$groupId")
             parameter("user_id", "eq.$userId")
         }
-        return true
-    }
-
-    /**
-     * Get checklist items for a specific group
-     */
-    suspend fun getChecklistItemsByGroup(groupId: String): List<ChecklistItemEntity> {
-        return client.from("checklist_items")
-            .select {
-                filter {
-                    eq("group_id", groupId)
-                }
-            }
-            .decodeList<ChecklistItemEntity>()
-    }
-
-    /**
-     * Get all blog posts for a specific group
-     * RLS policies will filter based on membership and published status
-     */
-    suspend fun getBlogPostsByGroup(groupId: String): List<BlogPostEntity> {
-        return client.from("blog_posts")
-            .select {
-                filter {
-                    eq("group_id", groupId)
-                }
-            }
-            .decodeList<BlogPostEntity>()
-    }
-
-    /**
-     * Get a blog post by ID
-     * RLS policies will ensure the user can only access posts in groups they're members of
-     */
-    suspend fun getBlogPostById(id: String): BlogPostEntity? {
-        return client.from("blog_posts")
-            .select {
-                filter {
-                    eq("id", id)
-                }
-            }
-            .decodeSingleOrNull<BlogPostEntity>()
-    }
-
-    /**
-     * Get a blog post by slug within a specific group
-     */
-    suspend fun getBlogPostBySlug(groupId: String, slug: String): BlogPostEntity? {
-        return client.from("blog_posts")
-            .select {
-                filter {
-                    eq("group_id", groupId)
-                    eq("slug", slug)
-                }
-            }
-            .decodeSingleOrNull<BlogPostEntity>()
-    }
-
-    /**
-     * Get all blog posts created by the authenticated user
-     */
-    suspend fun getMyBlogPosts(userId: String): List<BlogPostEntity> {
-        return client.from("blog_posts")
-            .select {
-                filter {
-                    eq("user_id", userId)
-                }
-            }
-            .decodeList<BlogPostEntity>()
-    }
-
-    /**
-     * Create a new blog post
-     * RLS policies will ensure the user is a member of the group
-     */
-    suspend fun createBlogPost(
-        groupId: String,
-        userId: String,
-        title: String,
-        slug: String,
-        content: String,
-        published: Boolean = false
-    ): BlogPostEntity {
-        return client.from("blog_posts")
-            .insert(
-                CreateBlogPostInput(
-                    group_id = groupId,
-                    user_id = userId,
-                    title = title,
-                    slug = slug,
-                    content = content,
-                    published = published
-                )
-            ) {
-                select()
-            }
-            .decodeSingle<BlogPostEntity>()
-    }
-
-    /**
-     * Update a blog post
-     * RLS policies will ensure the user owns the post
-     */
-    suspend fun updateBlogPost(
-        id: String,
-        title: String? = null,
-        slug: String? = null,
-        content: String? = null,
-        published: Boolean? = null
-    ): BlogPostEntity {
-        return client.from("blog_posts")
-            .update(
-                UpdateBlogPostInput(
-                    title = title,
-                    slug = slug,
-                    content = content,
-                    published = published
-                )
-            ) {
-                filter {
-                    eq("id", id)
-                }
-                select()
-            }
-            .decodeSingle<BlogPostEntity>()
-    }
-
-    /**
-     * Delete a blog post
-     * RLS policies will ensure the user owns the post
-     */
-    suspend fun deleteBlogPost(id: String): Boolean {
-        client.from("blog_posts")
-            .delete {
-                filter {
-                    eq("id", id)
-                }
-            }
         return true
     }
 }
