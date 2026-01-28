@@ -1,12 +1,12 @@
 # Rebuild Plan
 
-This playbook explains how to rebuild an application with the same business logic and technology stack as **Viaduct Template** starting from an empty repository. Each section focuses on the concepts rather than one-off file names so the approach works in any environment. Use the GraphQL schema as the contract between layers, and keep the Viaduct global ID and policy guides (`../VIADUCT_GLOBALID_GUIDE.md`, `../VIADUCT_POLICY_GUIDE.md`) close at hand while you work.
+This playbook explains how to rebuild an application with the same technology stack as **Viaduct Template** starting from an empty repository. Each section focuses on the concepts rather than one-off file names so the approach works in any environment. Use the GraphQL schema as the contract between layers, and keep the Viaduct global ID and policy guides (`VIADUCT_GLOBALID_GUIDE.md`, `VIADUCT_POLICY_GUIDE.md`) close at hand while you work.
 
 ---
 
 ## Step 1 — Workspace Foundations
 
-1. Initialize a repo with two top-level projects: `backend/` (Kotlin + Viaduct) and `frontend/` (Vite + React).
+1. Initialize a repo with two top-level projects: `backend/` (Kotlin + Viaduct) and `src/` (Vite + React).
 2. Install prerequisites:
    - Java 21 (or JVM compatible with Viaduct).
    - Kotlin Gradle toolchain.
@@ -14,7 +14,7 @@ This playbook explains how to rebuild an application with the same business logi
    - Supabase CLI and a local Postgres-compatible runtime (Docker/Podman).
 3. Create `.env.local` files for frontend and backend. At minimum define:
    - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
-   - `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_GRAPHQL_ENDPOINT`.
+   - `VITE_GRAPHQL_ENDPOINT`.
 4. Decide on an environment orchestrator (e.g., `mise`, `docker-compose`, or shell scripts) to start Supabase, backend, and frontend together for day-to-day development.
 
 ---
@@ -34,7 +34,7 @@ type User @scope(to: ["default"]) {
   createdAt: String!
 }
 
-type CheckboxGroup implements Node
+type Group implements Node
   @scope(to: ["default"])
   @requiresGroupMembership(groupIdField: "id") {
   id: ID!
@@ -42,7 +42,7 @@ type CheckboxGroup implements Node
   description: String
   ownerId: String!
   members: [GroupMember!]! @resolver
-  checklistItems: [ChecklistItem!]! @resolver
+  resources: [Resource!]! @resolver
   createdAt: String!
   updatedAt: String!
 }
@@ -54,12 +54,12 @@ type GroupMember @scope(to: ["default"]) {
   joinedAt: String!
 }
 
-type ChecklistItem implements Node
+type Resource implements Node
   @scope(to: ["default"])
   @requiresGroupMembership(groupIdField: "groupId") {
   id: ID!
   title: String!
-  completed: Boolean!
+  status: String!
   userId: String!
   groupId: String
   createdAt: String!
@@ -68,10 +68,10 @@ type ChecklistItem implements Node
 
 extend type Query @scope(to: ["default"]) {
   ping: String! @resolver
-  checkboxGroups: [CheckboxGroup!]! @resolver
-  checkboxGroup(id: ID!): CheckboxGroup @resolver
-  checklistItems: [ChecklistItem!]! @resolver
-  checklistItemsByGroup(groupId: ID!): [ChecklistItem!]! @resolver @requiresGroupMembership
+  groups: [Group!]! @resolver
+  group(id: ID!): Group @resolver
+  resources: [Resource!]! @resolver
+  resourcesByGroup(groupId: ID!): [Resource!]! @resolver @requiresGroupMembership
   searchUsers(query: String!): [User!]! @resolver
 }
 
@@ -79,7 +79,7 @@ extend type Query @scope(to: ["admin"]) {
   users: [User!]! @resolver
 }
 
-input CreateCheckboxGroupInput {
+input CreateGroupInput {
   name: String!
   description: String
 }
@@ -94,18 +94,18 @@ input RemoveGroupMemberInput {
   userId: String!
 }
 
-input CreateChecklistItemInput {
+input CreateResourceInput {
   title: String!
   groupId: ID!
 }
 
-input UpdateChecklistItemInput {
+input UpdateResourceInput {
   id: ID!
-  completed: Boolean
+  status: String
   title: String
 }
 
-input DeleteChecklistItemInput {
+input DeleteResourceInput {
   id: ID!
 }
 
@@ -119,12 +119,12 @@ input DeleteUserInput {
 }
 
 extend type Mutation @scope(to: ["default"]) {
-  createCheckboxGroup(input: CreateCheckboxGroupInput!): CheckboxGroup! @resolver
+  createGroup(input: CreateGroupInput!): Group! @resolver
   addGroupMember(input: AddGroupMemberInput!): GroupMember! @resolver
   removeGroupMember(input: RemoveGroupMemberInput!): Boolean! @resolver
-  createChecklistItem(input: CreateChecklistItemInput!): ChecklistItem! @resolver
-  updateChecklistItem(input: UpdateChecklistItemInput!): ChecklistItem! @resolver @requiresGroupMembership
-  deleteChecklistItem(input: DeleteChecklistItemInput!): Boolean! @resolver @requiresGroupMembership
+  createResource(input: CreateResourceInput!): Resource! @resolver
+  updateResource(input: UpdateResourceInput!): Resource! @resolver @requiresGroupMembership
+  deleteResource(input: DeleteResourceInput!): Boolean! @resolver @requiresGroupMembership
 }
 
 extend type Mutation @scope(to: ["admin"]) {
@@ -141,9 +141,9 @@ extend type Mutation @scope(to: ["admin"]) {
 ## Step 3 — Database & Row-Level Security
 
 1. Use Supabase/Postgres to store the domain data. The minimal schema consists of:
-   - `checklist_items` with optional `group_id`.
-   - `checkbox_groups` owned by a user.
-   - `group_members` linking users and groups.
+   - `resources` table with optional `group_id`.
+   - `groups` table owned by a user.
+   - `group_members` table linking users and groups.
 2. Create helper functions and triggers:
    - `is_admin()` reads `app_metadata.is_admin` from JWT.
    - `make_first_user_admin()` promotes the first registered user.
@@ -151,10 +151,10 @@ extend type Mutation @scope(to: ["admin"]) {
    - Timestamp triggers to keep `updated_at` fresh.
    - RPC helpers for `set_user_admin`, `get_all_users`, `delete_user_by_id`, `search_users`, and `cleanup_test_data`.
 3. Define Row-Level Security policies mirroring the business rules:
-   - Users can view/checklist items only if they belong to the group or own the item; admins bypass restrictions.
+   - Users can view resources only if they belong to the group or own the resource; admins bypass restrictions.
    - Group owners manage membership and groups; any member can view membership data.
-   - Checklist mutations require membership; admin rights extend to all groups.
-4. Store the DDL in a single migration file (e.g., `supabase/schema.sql`) so the database can be recreated anywhere with `supabase db reset --schema supabase/schema.sql`.
+   - Resource mutations require membership; admin rights extend to all groups.
+4. Store the DDL in migration files under `schema/migrations/` so the database can be recreated anywhere.
 
 ---
 
@@ -208,7 +208,7 @@ extend type Mutation @scope(to: ["admin"]) {
 
 ## Step 5 — Frontend Architecture (React + Vite)
 
-1. Initialize a Vite React TypeScript project inside `frontend/`.
+1. Initialize a Vite React TypeScript project inside `src/`.
 2. Configure the Supabase browser client:
    - Persist sessions in `localStorage`.
    - Auto-refresh tokens so GraphQL calls always have a valid JWT.
@@ -218,7 +218,7 @@ extend type Mutation @scope(to: ["admin"]) {
    - Throws on GraphQL errors and returns typed data.
 4. Implement UI flows that reflect business logic:
    - **Group dashboard**: list groups, create new groups, navigate to group detail.
-   - **Group detail**: show members and checklist items, add/remove members, add/update/delete items.
+   - **Group detail**: show members and resources, add/remove members, add/update/delete resources.
    - **Admin console**: list all users, toggle admin status, delete users.
 5. Adopt Tailwind or similar utility classes consistent with the project guidelines. Keep utilities near their elements and use `clsx`/`tailwind-merge` when class composition grows.
 6. Gate UI routes based on authentication state and optionally admin privileges.
@@ -228,7 +228,7 @@ extend type Mutation @scope(to: ["admin"]) {
 ## Step 6 — Testing Strategy
 
 1. **Database validation**:
-   - Run `supabase db reset --schema supabase/schema.sql` to ensure migrations apply cleanly.
+   - Run database reset to ensure migrations apply cleanly.
    - Execute RPC functions manually (Supabase SQL console or `supabase functions invoke`) to confirm permissions.
 2. **Backend tests**:
    - `./gradlew build` should regenerate schemas and compile resolvers without warnings.
@@ -237,7 +237,7 @@ extend type Mutation @scope(to: ["admin"]) {
 3. **Frontend tests**:
    - `npm run lint` to enforce ESLint rules.
    - `npm run build` for production bundles.
-   - Implement Playwright specs covering: login flow, group CRUD, checklist item lifecycle, admin management, and authorization error displays. Run with `npm run test:e2e`.
+   - Implement Playwright specs covering: login flow, group CRUD, resource lifecycle, admin management, and authorization error displays. Run with `npm run test:e2e`.
 4. **End-to-end smoke**:
    - Start Supabase, backend, and frontend together.
    - Seed two users (one admin, one regular). Walk through creating a group, inviting the second user, and asserting access controls.
@@ -253,8 +253,8 @@ extend type Mutation @scope(to: ["admin"]) {
    - Schema-driven architecture.
    - How policies enforce per-row membership.
    - How to run tests and refresh the database.
-4. If deploying, package the backend as a Docker image and ensure migrations run on boot (`supabase db push` or custom migration runner).
+4. If deploying, package the backend as a Docker image and ensure migrations run on boot.
 
 ---
 
-By following these steps, you can recreate the application’s business behavior—shared group checklists with membership policies, Supabase-powered auth, and a Viaduct GraphQL backend—without relying on the original repository. Adapt the structure to your organization’s conventions while keeping the schema, RLS rules, and policy enforcement consistent so the business logic remains intact.
+By following these steps, you can recreate the application's business behavior—shared group resources with membership policies, Supabase-powered auth, and a Viaduct GraphQL backend—without relying on the original repository. Adapt the structure to your organization's conventions while keeping the schema, RLS rules, and policy enforcement consistent so the business logic remains intact.

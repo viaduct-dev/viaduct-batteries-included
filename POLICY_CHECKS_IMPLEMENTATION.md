@@ -1,23 +1,23 @@
 # Per-Row Policy Checks with Group Membership
 
-This document describes the implementation of per-row policy checks using Viaduct's CheckerExecutor feature for group-based access control in Viaduct Template.
+This document describes the implementation of per-row policy checks using Viaduct's CheckerExecutor feature for group-based access control.
 
 ## Overview
 
-We've implemented a group-based access control system where:
-- Users can create **checkbox groups**
+The template implements a group-based access control system where:
+- Users can create **groups**
 - Groups have **members** (many-to-many relationship)
-- Checklist items belong to **groups**
-- **Per-row policy checks** verify group membership before allowing access to items
+- Resources belong to **groups**
+- **Per-row policy checks** verify group membership before allowing access
 
 This demonstrates Viaduct's policy check feature with custom `@requiresGroupMembership` directive.
 
 ## Architecture
 
 ### Database Layer (RLS + Application Logic)
-- `checkbox_groups` table: stores group information
+- `groups` table: stores group information
 - `group_members` table: manages group memberships
-- `checklist_items.group_id`: links items to groups
+- Resources have optional `group_id` foreign key
 - RLS policies enforce group membership at the database level
 - Application-level policy checks provide GraphQL-specific error messages
 
@@ -32,14 +32,14 @@ directive @requiresGroupMembership(
 
 Applied to types and fields that require group membership verification:
 ```graphql
-type ChecklistItem implements Node @requiresGroupMembership(groupIdField: "groupId") {
+type Resource implements Node @requiresGroupMembership(groupIdField: "groupId") {
   id: ID!
   title: String!
   groupId: String
   # ...
 }
 
-type CheckboxGroup implements Node @requiresGroupMembership(groupIdField: "id") {
+type Group implements Node @requiresGroupMembership(groupIdField: "id") {
   id: ID!
   name: String!
   # ...
@@ -137,7 +137,7 @@ When a GraphQL query requests a field with `@requiresGroupMembership`:
 1. **Query Execution Starts**
    ```graphql
    query {
-     checklistItems {
+     resources {
        id
        title
        groupId
@@ -146,8 +146,8 @@ When a GraphQL query requests a field with `@requiresGroupMembership`:
    ```
 
 2. **Viaduct Identifies Policy Check**
-   - Sees `ChecklistItem` type has `@requiresGroupMembership` directive
-   - Calls `GroupMembershipCheckerFactory.checkerExecutorForType("ChecklistItem")`
+   - Sees `Resource` type has `@requiresGroupMembership` directive
+   - Calls `GroupMembershipCheckerFactory.checkerExecutorForType("Resource")`
 
 3. **Factory Creates Executor**
    - Reads `groupIdField` parameter from directive
@@ -163,34 +163,20 @@ When a GraphQL query requests a field with `@requiresGroupMembership`:
    - **Failure**: Field returns `null` with error in GraphQL response:
      ```json
      {
-       "data": { "checklistItems": null },
+       "data": { "resources": null },
        "errors": [{
          "message": "Access denied: You are not a member of this group",
-         "path": ["checklistItems", 0]
+         "path": ["resources", 0]
        }]
      }
      ```
 
-## Registration (TODO)
+## Registration
 
-**Current Status**: The policy check implementation is complete, but registration with Viaduct is pending.
+To register the policy checker with Viaduct, use `StandardViaduct.Builder`:
 
-`BasicViaductFactory` (used in `Application.kt`) doesn't expose `CheckerExecutorFactory` registration. To complete the integration:
-
-### Option 1: Use StandardViaduct.Builder (Recommended)
-
-Add explicit dependency in `build.gradle.kts`:
-```kotlin
-dependencies {
-    implementation("com.airbnb.viaduct:service-wiring:0.4.0")
-    // ...
-}
-```
-
-Then update `Application.kt`:
 ```kotlin
 import viaduct.service.runtime.StandardViaduct
-import viaduct.service.runtime.SchemaConfiguration
 
 val viaduct = StandardViaduct.Builder()
     .withTenantAPIBootstrapperBuilder(/* ... */)
@@ -201,15 +187,15 @@ val viaduct = StandardViaduct.Builder()
     .build()
 ```
 
-### Option 2: Implement in Resolvers
+### Alternative: Implement in Resolvers
 
 Move policy checks into resolver logic as a workaround:
 ```kotlin
 @Resolver
-class ChecklistItemsQueryResolver(
+class ResourcesQueryResolver(
     private val groupService: GroupService
-) : QueryResolvers.ChecklistItems() {
-    override suspend fun resolve(ctx: Context): List<ChecklistItem> {
+) : QueryResolvers.Resources() {
+    override suspend fun resolve(ctx: Context): List<Resource> {
         val userId = (ctx.requestContext as GraphQLRequestContext).userId
 
         val items = /* fetch from database */
@@ -242,10 +228,10 @@ fun `access denied when not group member`() {
     val nonMemberUserId = "user-456"
 
     MockTenantModuleBootstrapper(SDL) {
-        field("Query" to "checklistItemsByGroup") {
+        field("Query" to "resourcesByGroup") {
             resolver {
                 fn { _, _, _, _, _ ->
-                    listOf(ChecklistItem(id = "item-1", groupId = groupId))
+                    listOf(Resource(id = "item-1", groupId = groupId))
                 }
             }
             checker {
@@ -259,39 +245,35 @@ fun `access denied when not group member`() {
         }
     }.runFeatureTest {
         val result = viaduct.runQuery(
-            "query { checklistItemsByGroup(groupId: \"$groupId\") { id } }",
+            "query { resourcesByGroup(groupId: \"$groupId\") { id } }",
             requestContext = GraphQLRequestContext(nonMemberUserId, "token")
         )
 
-        assertNull(result.getData()["checklistItemsByGroup"])
+        assertNull(result.getData()["resourcesByGroup"])
         assertTrue(result.errors.isNotEmpty())
         assertTrue(result.errors[0].message.contains("Access denied"))
     }
 }
 ```
 
-## Files Modified/Created
+## Key Files
 
 ### Database
-- `schema/migrations/20251008000000_initial_schema.sql` - Initial checklist_items table
-- `schema/migrations/20251017000000_add_checkbox_groups.sql` - Groups, members, and updated RLS policies
+- `schema/migrations/` - Migration files for groups, members, and RLS policies
 
 ### GraphQL Schema
 - `backend/src/main/viaduct/schema/PolicyDirective.graphqls` - Custom directive
-- `backend/src/main/viaduct/schema/CheckboxGroup.graphqls` - Group types and operations
-- `backend/src/main/viaduct/schema/ChecklistItem.graphqls` - Updated with group support
+- `backend/src/main/viaduct/schema/Group.graphqls` - Group types and operations
 
 ### Kotlin Implementation
 - `backend/src/main/kotlin/com/viaduct/policy/GroupMembershipPolicyExecutor.kt` - Policy executor
 - `backend/src/main/kotlin/com/viaduct/policy/GroupMembershipCheckerFactory.kt` - Executor factory
 - `backend/src/main/kotlin/com/viaduct/services/GroupService.kt` - Group operations and membership checks
-- `backend/src/main/kotlin/com/viaduct/SupabaseClient.kt` - Added group-related database methods
-- `backend/src/main/kotlin/com/viaduct/config/KoinModule.kt` - Registered GroupService
+- `backend/src/main/kotlin/com/viaduct/SupabaseClient.kt` - Group-related database methods
+- `backend/src/main/kotlin/com/viaduct/config/KoinModule.kt` - Service registration
 
-## Next Steps
+## Related Documentation
 
-1. **Complete Viaduct Integration**: Add service-wiring dependency and register CheckerExecutorFactory
-2. **Implement Resolvers**: Create resolver implementations for all group-related queries/mutations
-3. **Add Tests**: Write unit and integration tests for policy checks
-4. **Frontend Integration**: Update React app to work with groups
-5. **Documentation**: Add API documentation and usage examples
+- [VIADUCT_POLICY_GUIDE.md](./VIADUCT_POLICY_GUIDE.md) - Complete policy directive guide
+- [VIADUCT_GLOBALID_GUIDE.md](./VIADUCT_GLOBALID_GUIDE.md) - Working with GlobalIDs
+- [docs/IMPLEMENTING_A_RESOURCE.md](./docs/IMPLEMENTING_A_RESOURCE.md) - Adding new resource types
