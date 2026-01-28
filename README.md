@@ -4,9 +4,9 @@ A starter template demonstrating a three-tier architecture with GraphQL middlewa
 
 ## Architecture
 
-- **Frontend**: React + Vite with shadcn/ui components (TypeScript)
-- **Backend**: Viaduct GraphQL middleware layer (Kotlin/Ktor)
-- **Database**: Supabase PostgreSQL with Row Level Security
+- **Frontend** (in `src/`): React + Vite with shadcn/ui components (TypeScript)
+- **Backend** (in `backend/`): Viaduct GraphQL middleware layer (Kotlin/Ktor)
+- **Database**: Supabase PostgreSQL with Row Level Security (database DDL in `dbschema/`)
 
 The backend provides a type-safe GraphQL API that sits between the React frontend and Supabase, enabling efficient data fetching with batch resolution and modular schema organization.
 
