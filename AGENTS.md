@@ -30,7 +30,7 @@ The following guides provide comprehensive instructions for each step:
 | [`VIADUCT_GLOBALID_GUIDE.md`](VIADUCT_GLOBALID_GUIDE.md) | Working with Viaduct's GlobalID system in resolvers |
 | [`VIADUCT_POLICY_GUIDE.md`](VIADUCT_POLICY_GUIDE.md) | Creating custom authorization policies with directives |
 | [`INTEGRATION.md`](INTEGRATION.md) | Architecture overview and how the layers connect |
-| [`backend/src/main/kotlin/com/viaduct/examples/checklist/resolvers/README.md`](backend/src/main/kotlin/com/viaduct/examples/checklist/resolvers/README.md) | Example resolver implementations with comments |
+| [`backend/src/main/kotlin/com/viaduct/examples/`](backend/src/main/kotlin/com/viaduct/examples/) | Example resolver implementations with comments (use as templates) |
 
 ### Quick Reference: Adding a New Resource
 
@@ -369,7 +369,7 @@ The backend uses Viaduct's modular architecture:
 
 ## Commit & Pull Request Guidelines
 
-- Mirror existing history: short, imperative subjects with optional `scope:` prefixes (e.g., `backend: add checklist resolver`).
+- Mirror existing history: short, imperative subjects with optional `scope:` prefixes (e.g., `backend: add group resolver`).
 - Reference issues as `#123` and call out schema or migration impacts in the body.
 - Before opening a PR, run lint, frontend build, the affected Playwright suite, and relevant Gradle tasks.
 

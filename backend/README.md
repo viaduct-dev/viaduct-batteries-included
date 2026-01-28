@@ -1,6 +1,6 @@
 # Viaduct Template Backend
 
-A Viaduct-based GraphQL backend service that sits between the Lovable frontend and Supabase database.
+A Viaduct-based GraphQL backend service that sits between the React frontend and Supabase database.
 
 ## Architecture
 
@@ -29,7 +29,7 @@ export SUPABASE_ANON_KEY=your-anon-key
 ### 2. Build and run
 
 ```bash
-./gradlew bootRun
+./gradlew run
 ```
 
 The server will start on `http://localhost:8080`.
@@ -40,58 +40,40 @@ Open your browser to [http://localhost:8080/graphiql](http://localhost:8080/grap
 
 ### 4. Try Example Queries
 
-#### Get all checklist items
+#### Get Supabase configuration (public)
 
 ```graphql
 query {
-  checklistItems {
-    id
-    title
-    completed
-    createdAt
-    updatedAt
+  supabaseConfig {
+    url
+    anonKey
   }
 }
 ```
 
-#### Create a new item
+#### Get all groups (authenticated)
+
+```graphql
+query {
+  groups {
+    id
+    name
+    description
+  }
+}
+```
+
+#### Create a group (authenticated)
 
 ```graphql
 mutation {
-  createChecklistItem(input: {
-    title: "Buy groceries"
-    userId: "your-user-id"
+  createGroup(input: {
+    name: "My Group"
+    description: "Optional description"
   }) {
     id
-    title
-    completed
+    name
   }
-}
-```
-
-#### Update an item
-
-```graphql
-mutation {
-  updateChecklistItem(input: {
-    id: "item-global-id"
-    completed: true
-  }) {
-    id
-    title
-    completed
-    updatedAt
-  }
-}
-```
-
-#### Delete an item
-
-```graphql
-mutation {
-  deleteChecklistItem(input: {
-    id: "item-global-id"
-  })
 }
 ```
 
@@ -99,28 +81,14 @@ mutation {
 
 ```
 backend/
-├── modules/
-│   └── checklist/              # Checklist module
-│       ├── src/main/
-│       │   ├── kotlin/         # Kotlin resolvers and services
-│       │   └── viaduct/schema/ # GraphQL schema definitions
-│       └── build.gradle.kts
 ├── src/main/
-│   ├── kotlin/                 # Main application
-│   └── resources/              # Configuration files
-└── build.gradle.kts            # Main build configuration
-```
-
-## Integration with Frontend
-
-Update the frontend's GraphQL endpoint from Supabase to Viaduct:
-
-```typescript
-// Before (in src/lib/graphql.ts)
-const response = await fetch(`${SUPABASE_URL}/graphql/v1`, { ... });
-
-// After
-const response = await fetch(`http://localhost:8080/graphql`, { ... });
+│   ├── kotlin/                 # Application, resolvers, services
+│   │   └── com/viaduct/
+│   │       ├── Application.kt  # Ktor entry point
+│   │       ├── SupabaseClient.kt # Supabase integration
+│   │       └── resolvers/      # GraphQL resolvers
+│   └── viaduct/schema/         # GraphQL schema definitions (.graphqls)
+└── build.gradle.kts            # Build configuration
 ```
 
 ## Development
@@ -143,8 +111,13 @@ const response = await fetch(`http://localhost:8080/graphql`, { ... });
 ./gradlew clean build
 ```
 
-## Notes
+## Key Concepts
 
-- GlobalIDs are base64-encoded identifiers combining type name and internal ID
-- Authentication/authorization should be added via Spring Security
-- CORS configuration may be needed for frontend integration
+- **GlobalIDs**: Base64-encoded identifiers combining type name and internal ID
+- **Scopes**: `@scope(to: ["default"])` for authenticated, `@scope(to: ["public"])` for unauthenticated
+- **Resolvers**: Extend generated base classes and implement `resolve()` method
+- **Authentication**: JWT token passed via `Authorization` header, creates authenticated Supabase client
+
+## Adding New Features
+
+See [IMPLEMENTING_A_RESOURCE.md](../docs/IMPLEMENTING_A_RESOURCE.md) for a complete guide to adding new resources.
