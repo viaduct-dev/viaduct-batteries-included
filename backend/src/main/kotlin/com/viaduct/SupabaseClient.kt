@@ -211,12 +211,12 @@ open class SupabaseService(
             supabaseKey = supabaseKey // Use anon key for apikey header
         ) {
             // Provide the user's access token - this sets the Authorization header for Postgrest
+            // Note: Cannot use install(Auth) with custom accessToken provider per Supabase SDK
             accessToken = { userAccessToken }
 
             install(Postgrest) {
                 defaultSchema = "public"
             }
-            install(Auth)
         }
 
         return AuthenticatedSupabaseClient(client, sharedHttpClient, userAccessToken, supabaseUrl, supabaseKey)
