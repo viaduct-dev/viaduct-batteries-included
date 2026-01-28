@@ -9,6 +9,100 @@ This is a Viaduct template project with a three-tier architecture:
 - **Backend**: Viaduct GraphQL middleware layer (Kotlin/Ktor)
 - **Database**: Supabase PostgreSQL
 
+## Building a New Application
+
+This template is designed as a starting point for building new applications. The typical workflow involves modifying all three layers: database schema, GraphQL backend, and React frontend.
+
+### Step-by-Step Guide
+
+1. **Define your data model** - Create SQL migrations in `schema/migrations/`
+2. **Define GraphQL schema** - Add `.graphqls` files in `backend/src/main/viaduct/schema/`
+3. **Implement resolvers** - Create Kotlin resolvers in `backend/src/main/kotlin/com/viaduct/resolvers/`
+4. **Build frontend** - Create React components and GraphQL queries in `src/`
+
+### Detailed Documentation
+
+The following guides provide comprehensive instructions for each step:
+
+| Document | Purpose |
+|----------|---------|
+| [`docs/IMPLEMENTING_A_RESOURCE.md`](docs/IMPLEMENTING_A_RESOURCE.md) | **Start here** - Complete walkthrough of implementing a new resource type across all layers |
+| [`VIADUCT_GLOBALID_GUIDE.md`](VIADUCT_GLOBALID_GUIDE.md) | Working with Viaduct's GlobalID system in resolvers |
+| [`VIADUCT_POLICY_GUIDE.md`](VIADUCT_POLICY_GUIDE.md) | Creating custom authorization policies with directives |
+| [`INTEGRATION.md`](INTEGRATION.md) | Architecture overview and how the layers connect |
+| [`backend/src/main/kotlin/com/viaduct/examples/checklist/resolvers/README.md`](backend/src/main/kotlin/com/viaduct/examples/checklist/resolvers/README.md) | Example resolver implementations with comments |
+
+### Quick Reference: Adding a New Resource
+
+**1. Database Migration** (`schema/migrations/YYYYMMDDHHMMSS_add_resource.sql`):
+```sql
+CREATE TABLE public.resources (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    group_id UUID REFERENCES public.groups(id),
+    user_id UUID REFERENCES auth.users(id),
+    title TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE public.resources ENABLE ROW LEVEL SECURITY;
+```
+
+**2. GraphQL Schema** (`backend/src/main/viaduct/schema/Resource.graphqls`):
+```graphql
+type Resource implements Node @scope(to: ["default"]) {
+  id: ID!
+  title: String!
+  groupId: String
+  createdAt: String!
+}
+
+extend type Query @scope(to: ["default"]) {
+  resources: [Resource!]! @resolver
+}
+
+extend type Mutation @scope(to: ["default"]) {
+  createResource(input: CreateResourceInput!): Resource! @resolver
+}
+
+input CreateResourceInput @scope(to: ["default"]) {
+  title: String!
+  groupId: ID @idOf(type: "Group")
+}
+```
+
+**3. Kotlin Resolver** (`backend/src/main/kotlin/com/viaduct/resolvers/ResourcesQueryResolver.kt`):
+```kotlin
+@Resolver
+class ResourcesQueryResolver : QueryResolvers.Resources() {
+    override suspend fun resolve(ctx: Context): List<Resource> {
+        val entities = ctx.authenticatedClient.getResources()
+        return entities.map { entity ->
+            Resource.Builder(ctx)
+                .id(ctx.globalIDFor(Resource.Reflection, entity.id))
+                .title(entity.title)
+                .groupId(entity.group_id)
+                .createdAt(entity.created_at)
+                .build()
+        }
+    }
+}
+```
+
+**4. Frontend Query** (`src/lib/graphql.ts`):
+```typescript
+export const GET_RESOURCES = `
+  query GetResources {
+    resources { id title groupId createdAt }
+  }
+`;
+```
+
+### Key Concepts
+
+- **GlobalIDs**: Use `@idOf(type: "TypeName")` on input ID fields; access via `.internalID` in resolvers
+- **Scopes**: Use `@scope(to: ["default"])` for authenticated access, `@scope(to: ["public"])` for unauthenticated
+- **RLS Policies**: Database-level security using `is_group_member()` and `is_admin()` helpers
+- **Resolvers**: Extend generated base classes and implement `resolve()` method
+
 ## Project Structure & Module Organization
 
 - `src/` houses the React + Vite UI (components, pages, shared `lib/`, hooks) with global styles in `index.css`.
