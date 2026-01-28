@@ -23,11 +23,6 @@
 - Add or update Playwright specs in `e2e/*.spec.ts` for meaningful UI flows; assert visible outcomes rather than implementation details.
 - Place backend coverage in `backend/src/test/kotlin`; favor deterministic tests and stub Supabase access when live data is unnecessary.
 
-## Commit & Pull Request Guidelines
-- Mirror existing history: short, imperative subjects with optional `scope:` prefixes (e.g., `backend: add checklist resolver`).
-- Reference issues as `#123` and call out schema or migration impacts in the body.
-- Before opening a PR, run lint, frontend build, the affected Playwright suite, and relevant Gradle tasks. Share a concise summary, testing notes, and UI captures when visuals change; request reviewers from both frontend and backend when work spans layers.
-
 ## Environment & Security Notes
 - Credentials in `mise.toml` support local work only; override via `.env.local` for personal secrets and avoid committing new keys.
 - Default GraphQL endpoint is `http://localhost:8080/graphql`; update clients in `src/lib` when targeting staging or production.
