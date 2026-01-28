@@ -37,10 +37,15 @@ Go to **Settings** → **API** in your Supabase dashboard. You'll need these 3 v
 
 1. Click the button above
 2. Connect your GitHub account if prompted
-3. Paste the 3 values from Step 3 into the form
-4. Click **Apply**
+3. **Rename your services** (recommended):
+   - Change `viaduct-frontend` to `yourapp` (this becomes your public URL: `yourapp.onrender.com`)
+   - Change `viaduct-backend` to `yourapp-backend`
+4. Paste the 3 Supabase values from Step 3 into the form
+5. Click **Apply**
 
 The deploy takes ~5 minutes. Once complete, visit your frontend URL to start using the app!
+
+> **Note**: If you skip renaming, your app will be at `viaduct-frontend.onrender.com`. You can rename services later in Render's dashboard, but URLs will change.
 
 ---
 
@@ -93,6 +98,3 @@ See [CLAUDE.md](./CLAUDE.md) for complete documentation including:
 - **Render Backend**: Free (512MB RAM, spins down after inactivity)
   - Upgrade to Starter ($7/mo) for always-on
 
-## Project Origin
-
-Bootstrapped with [Lovable](https://lovable.dev) and extended with Viaduct backend.
