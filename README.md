@@ -2,6 +2,8 @@
 
 A starter template demonstrating a three-tier architecture with GraphQL middleware.
 
+To build your Viaduct-backed application, first fork this repository as a starting point.  After you successfully build and test our basline functionality (using both the frontend and GraphiQL), you're ready to build your app!
+
 ## Architecture
 
 - **Frontend** (in `src/`): React + Vite with shadcn/ui components (TypeScript)
