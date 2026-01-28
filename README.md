@@ -30,7 +30,7 @@ This will start:
 
 ## Documentation
 
-**For detailed setup, development commands, architecture details, and troubleshooting, see [CLAUDE.md](./CLAUDE.md)**
+**For detailed setup, development commands, architecture details, and troubleshooting, see [AGENTS.md](./AGENTS.md)**
 
 The CLAUDE.md file contains comprehensive documentation including:
 - Complete development commands (mise, npm, gradle, supabase)
