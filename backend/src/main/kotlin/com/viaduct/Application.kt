@@ -160,52 +160,8 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String, c
         }
     }
 
-    // Install Koin plugin for dependency injection (Koin 4.x pattern)
-    install(Koin) {
-        slf4jLogger()
-        modules(appModule(supabaseUrl, supabaseKey))
-    }
-
-    // Register shutdown hook to close HttpClient properly
-    monitor.subscribe(ApplicationStopped) {
-        val httpClient = getKoin().getOrNull<HttpClient>()
-        httpClient?.close()
-    }
-
-    // Install GraphQL authentication plugin
-    // This handles extracting and validating auth tokens as a cross-cutting concern
-    install(GraphQLAuthentication) {
-        this.objectMapper = objectMapper
-    }
-
-    // Get the Koin instance from the application context
-    val koin = getKoin()
-
-    // Use Koin-based dependency injector for Viaduct resolvers
-    val koinInjector = KoinTenantCodeInjector(koin)
-
-    // Get services from Koin for application configuration
-    // Note: These are singletons needed at application startup for Viaduct configuration
-    val authService = koin.get<AuthService>()
-    val groupService = koin.get<GroupService>()
-    val supabaseService = koin.get<SupabaseService>()
-
-    // Build Viaduct service using BasicViaductFactory
-    val viaduct = BasicViaductFactory.create(
-        schemaRegistrationInfo = SchemaRegistrationInfo(
-            scopes = listOf(
-                SchemaScopeInfo("public", setOf("public")),
-                SchemaScopeInfo("default", setOf("default", "public")),
-                SchemaScopeInfo("admin", setOf("default", "admin", "public"))
-            )
-        ),
-        tenantRegistrationInfo = TenantRegistrationInfo(
-            tenantPackagePrefix = "com.viaduct",
-            tenantCodeInjector = koinInjector
-        )
-    )
-
-    // Install CORS plugin (with idempotency check for test compatibility)
+    // Install CORS plugin EARLY - must be before auth plugin to handle error responses
+    // CORS headers need to be added to ALL responses, including 401 errors from auth
     if (pluginOrNull(CORS) == null) {
         install(CORS) {
             allowMethod(HttpMethod.Options)
@@ -258,6 +214,51 @@ fun Application.configureApplication(supabaseUrl: String, supabaseKey: String, c
             }
         }
     }
+
+    // Install Koin plugin for dependency injection (Koin 4.x pattern)
+    install(Koin) {
+        slf4jLogger()
+        modules(appModule(supabaseUrl, supabaseKey))
+    }
+
+    // Register shutdown hook to close HttpClient properly
+    monitor.subscribe(ApplicationStopped) {
+        val httpClient = getKoin().getOrNull<HttpClient>()
+        httpClient?.close()
+    }
+
+    // Install GraphQL authentication plugin
+    // This handles extracting and validating auth tokens as a cross-cutting concern
+    install(GraphQLAuthentication) {
+        this.objectMapper = objectMapper
+    }
+
+    // Get the Koin instance from the application context
+    val koin = getKoin()
+
+    // Use Koin-based dependency injector for Viaduct resolvers
+    val koinInjector = KoinTenantCodeInjector(koin)
+
+    // Get services from Koin for application configuration
+    // Note: These are singletons needed at application startup for Viaduct configuration
+    val authService = koin.get<AuthService>()
+    val groupService = koin.get<GroupService>()
+    val supabaseService = koin.get<SupabaseService>()
+
+    // Build Viaduct service using BasicViaductFactory
+    val viaduct = BasicViaductFactory.create(
+        schemaRegistrationInfo = SchemaRegistrationInfo(
+            scopes = listOf(
+                SchemaScopeInfo("public", setOf("public")),
+                SchemaScopeInfo("default", setOf("default", "public")),
+                SchemaScopeInfo("admin", setOf("default", "admin", "public"))
+            )
+        ),
+        tenantRegistrationInfo = TenantRegistrationInfo(
+            tenantPackagePrefix = "com.viaduct",
+            tenantCodeInjector = koinInjector
+        )
+    )
 
     routing {
         post("/graphql") {
