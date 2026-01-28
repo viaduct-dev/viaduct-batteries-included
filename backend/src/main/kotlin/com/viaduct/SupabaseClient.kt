@@ -203,15 +203,15 @@ open class SupabaseService(
      * Create an authenticated Supabase client for a specific user
      * This client will use the user's JWT token, enabling RLS policies
      */
-    fun createAuthenticatedClient(accessToken: String, sharedHttpClient: HttpClient): AuthenticatedSupabaseClient {
+    fun createAuthenticatedClient(userAccessToken: String, sharedHttpClient: HttpClient): AuthenticatedSupabaseClient {
         // Create a client with the anon key for apikey header
         // Use accessToken parameter to set Authorization header for all Postgrest requests
         val client = createSupabaseClient(
             supabaseUrl = supabaseUrl,
             supabaseKey = supabaseKey // Use anon key for apikey header
         ) {
-            // Provide the access token directly - this sets the Authorization header for Postgrest
-            accessToken = { accessToken }
+            // Provide the user's access token - this sets the Authorization header for Postgrest
+            accessToken = { userAccessToken }
 
             install(Postgrest) {
                 defaultSchema = "public"
@@ -219,7 +219,7 @@ open class SupabaseService(
             install(Auth)
         }
 
-        return AuthenticatedSupabaseClient(client, sharedHttpClient, accessToken, supabaseUrl, supabaseKey)
+        return AuthenticatedSupabaseClient(client, sharedHttpClient, userAccessToken, supabaseUrl, supabaseKey)
     }
 
     /**
