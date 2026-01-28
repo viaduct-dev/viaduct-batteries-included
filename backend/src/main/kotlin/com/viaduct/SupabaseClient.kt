@@ -205,25 +205,18 @@ open class SupabaseService(
      */
     fun createAuthenticatedClient(accessToken: String, sharedHttpClient: HttpClient): AuthenticatedSupabaseClient {
         // Create a client with the anon key for apikey header
-        // The user's access token is passed to AuthenticatedSupabaseClient for Authorization header
+        // Use accessToken parameter to set Authorization header for all Postgrest requests
         val client = createSupabaseClient(
             supabaseUrl = supabaseUrl,
             supabaseKey = supabaseKey // Use anon key for apikey header
         ) {
+            // Provide the access token directly - this sets the Authorization header for Postgrest
+            accessToken = { accessToken }
+
             install(Postgrest) {
-                // Set the default Authorization header to use the user's access token
                 defaultSchema = "public"
             }
-            install(Auth) {
-                // Configure auth to use the provided access token
-            }
-            httpEngine = httpClient.engine  // Use the injected shared HttpClient
-        }
-
-        // Import the user's access token into the Auth module
-        // This makes the client use the token for Authorization headers
-        kotlinx.coroutines.runBlocking {
-            client.auth.importAuthToken(accessToken)
+            install(Auth)
         }
 
         return AuthenticatedSupabaseClient(client, sharedHttpClient, accessToken, supabaseUrl, supabaseKey)

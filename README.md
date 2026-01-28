@@ -19,6 +19,8 @@ A starter template demonstrating a three-tier architecture with GraphQL middlewa
 2. Click **Providers**
 3. Find **Email** and make sure it's **Enabled**
 
+> **For Testing**: If you want to test signups without email verification, go to **Authentication** → **Sign In / Providers** → **User Signups** and disable **"Confirm email"**. You can re-enable this for production.
+
 ### Step 3: Get Your API Credentials
 
 Go to **Settings** → **API** in your Supabase dashboard. You'll need these 3 values:
