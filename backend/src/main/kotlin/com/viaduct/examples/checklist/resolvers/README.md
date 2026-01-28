@@ -64,7 +64,7 @@ The checklist implementation shows a complete example of:
 ## Related Documentation
 
 - [GraphQL Schema Example](../../viaduct/schema/examples/checklist/ChecklistItem.graphqls.example)
-- [Database Migration Example](../../../../../supabase/migrations/examples/checklist/)
+- [Database Migration Example](../../../../../schema/migrations/examples/checklist/)
 - [Framework Overview](../../../../../docs/FRAMEWORK_OVERVIEW.md)
 - [Implementation Guide](../../../../../docs/IMPLEMENTING_A_RESOURCE.md)
 

@@ -13,7 +13,8 @@ This is a Viaduct template project with a three-tier architecture:
 
 - `src/` houses the React + Vite UI (components, pages, shared `lib/`, hooks) with global styles in `index.css`.
 - `backend/` runs the Viaduct GraphQL service: Kotlin lives in `src/main/kotlin`, module schemas in each `viaduct/schema`, Gradle build files at the root.
-- Local Supabase manifests and migrations sit in `supabase/`.
+- Database migrations sit in `schema/migrations/`.
+- Local Supabase config sits in `supabase/`.
 - Playwright specs land in `e2e/` with artifacts under `playwright-report/` and `test-results/`.
 
 ## Development Commands
@@ -121,10 +122,13 @@ Supabase PostgreSQL (port 54321)
 - `src/main/viaduct/schema/`: GraphQL schema definitions (`.graphqls` files)
 - `build.gradle.kts`: Gradle build configuration with Viaduct plugins
 
-### Database (`supabase/`)
+### Database Schema (`schema/`)
 
-- `migrations/`: SQL migration files
-- `config.toml`: Supabase configuration
+- `migrations/`: SQL migration files (database-agnostic)
+
+### Supabase Config (`supabase/`)
+
+- `config.toml`: Local Supabase development configuration
 
 ## Coding Style & Naming Conventions
 
@@ -366,7 +370,7 @@ This project includes a `render.yaml` blueprint for one-click deployment to [Ren
 
 **Migrations run automatically** on every deploy! The backend:
 1. Derives the database connection from `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
-2. Runs all pending migrations from `supabase/migrations/`
+2. Runs all pending migrations from `schema/migrations/`
 3. Tracks applied migrations in a `schema_migrations` table
 
 For local development, use:

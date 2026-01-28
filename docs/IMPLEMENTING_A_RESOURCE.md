@@ -18,7 +18,7 @@ All layers integrate with the framework's group-based access control and admin b
 
 ### Create a Migration
 
-Create a new migration file: `supabase/migrations/YYYYMMDDHHMMSS_add_your_resource.sql`
+Create a new migration file: `schema/migrations/YYYYMMDDHHMMSS_add_your_resource.sql`
 
 ### Example Template
 

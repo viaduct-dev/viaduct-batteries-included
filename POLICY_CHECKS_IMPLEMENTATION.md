@@ -273,8 +273,8 @@ fun `access denied when not group member`() {
 ## Files Modified/Created
 
 ### Database
-- `supabase/migrations/20251008000000_initial_schema.sql` - Initial checklist_items table
-- `supabase/migrations/20251017000000_add_checkbox_groups.sql` - Groups, members, and updated RLS policies
+- `schema/migrations/20251008000000_initial_schema.sql` - Initial checklist_items table
+- `schema/migrations/20251017000000_add_checkbox_groups.sql` - Groups, members, and updated RLS policies
 
 ### GraphQL Schema
 - `backend/src/main/viaduct/schema/PolicyDirective.graphqls` - Custom directive

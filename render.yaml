@@ -13,7 +13,7 @@ services:
     name: viaduct-backend
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
-    dockerContext: .  # Root context to access supabase/migrations
+    dockerContext: .  # Root context to access schema/migrations
     healthCheckPath: /health
     plan: free
     envVars:

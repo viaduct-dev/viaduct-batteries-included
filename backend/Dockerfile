@@ -1,5 +1,5 @@
 # Multi-stage Dockerfile for Viaduct/Ktor backend
-# Docker context is project root (.) to access supabase/migrations
+# Docker context is project root (.) to access schema/migrations
 
 # Stage 1: Build the application
 FROM eclipse-temurin:21-jdk AS builder
@@ -42,7 +42,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /app/build/install/viaduct-backend/ /app/
 
 # Copy migration files and script from project root
-COPY supabase/migrations/ /app/migrations/
+COPY schema/migrations/ /app/migrations/
 COPY backend/scripts/run-migrations.sh /app/scripts/run-migrations.sh
 
 # Make scripts executable
