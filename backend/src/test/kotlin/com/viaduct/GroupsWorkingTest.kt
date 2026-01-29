@@ -59,7 +59,7 @@ class GroupsWorkingTest : FunSpec({
         val userId = client.auth.currentUserOrNull()?.id
         userId shouldNotBe null
 
-        val createdGroup = authClient.createCheckboxGroup(
+        val createdGroup = authClient.createGroup(
             name = groupName,
             description = "Test description",
             ownerId = userId!!
@@ -69,7 +69,7 @@ class GroupsWorkingTest : FunSpec({
         createdGroup.name shouldBe groupName
 
         // 3. Query groups and verify the new group appears
-        val groups = authClient.getCheckboxGroups()
+        val groups = authClient.getGroups()
         groups.shouldNotBeEmpty()
         println("✓ Found ${groups.size} group(s)")
 
@@ -79,7 +79,7 @@ class GroupsWorkingTest : FunSpec({
         println("✓ Group appears in query results")
 
         // 4. Query the specific group by ID
-        val queriedGroup = authClient.getCheckboxGroupById(createdGroup.id)
+        val queriedGroup = authClient.getGroupById(createdGroup.id)
         queriedGroup shouldNotBe null
         queriedGroup!!.name shouldBe groupName
         println("✓ Can query group by ID")

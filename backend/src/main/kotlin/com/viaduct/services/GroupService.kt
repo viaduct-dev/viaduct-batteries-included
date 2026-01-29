@@ -57,14 +57,14 @@ open class GroupService(
      * Get all groups that a user is a member of.
      */
     suspend fun getUserGroups(authenticatedClient: AuthenticatedSupabaseClient): List<CheckboxGroupEntity> {
-        return authenticatedClient.getCheckboxGroups()
+        return authenticatedClient.getGroups()
     }
 
     /**
      * Get a specific group by ID.
      */
     suspend fun getGroupById(authenticatedClient: AuthenticatedSupabaseClient, groupId: String): CheckboxGroupEntity? {
-        return authenticatedClient.getCheckboxGroupById(groupId)
+        return authenticatedClient.getGroupById(groupId)
     }
 
     /**
@@ -77,7 +77,7 @@ open class GroupService(
         description: String?,
         ownerId: String
     ): CheckboxGroupEntity {
-        return authenticatedClient.createCheckboxGroup(name, description, ownerId)
+        return authenticatedClient.createGroup(name, description, ownerId)
     }
 
     /**
