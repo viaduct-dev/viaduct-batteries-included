@@ -19,7 +19,7 @@ port = 54323
 [auth]
 enabled = true
 site_url = "http://localhost:5173"
-additional_redirect_urls = ["http://localhost:5173"]
+additional_redirect_urls = ["http://localhost:5173", "https://veneering-unbitten-hemstitch.ngrok-free.dev"]
 jwt_expiry = 3600
 enable_signup = true
 
@@ -28,9 +28,11 @@ enable_signup = true
 double_confirm_changes = true
 enable_confirmations = false  # Disable for local dev (no SMTP)
 
-# For production OAuth, configure in Supabase Dashboard:
-# Authentication → Providers → Enable desired providers
-# Then set client_id and secret for each
+[auth.external.github]
+enabled = true
+client_id = "Ov23liwFPuO95YlqL368"
+secret = "env(GITHUB_OAUTH_SECRET)"
+redirect_uri = "https://veneering-unbitten-hemstitch.ngrok-free.dev/auth/v1/callback"
 
 [analytics]
 enabled = false
