@@ -64,6 +64,10 @@ input RemoveGroupMemberInput @scope(to: ["default"]) {
   userId: String!
 }
 
+input ArchiveGroupInput @scope(to: ["default"]) {
+  groupId: ID! @idOf(type: "Group")
+}
+
 extend type Query @scope(to: ["default"]) {
   """Get all groups the current user is a member of."""
   groups: [Group!]! @resolver
@@ -81,4 +85,10 @@ extend type Mutation @scope(to: ["default"]) {
 
   """Remove a member from a group. The member themselves or an EDITOR+ can remove."""
   removeGroupMember(input: RemoveGroupMemberInput!): Boolean! @resolver
+
+  """
+  Archive a group. Sets status to DELETING, enqueues RECONCILE_ASSET for all
+  affected assets, then marks ARCHIVED. Requires TenantAsset(default) EDITOR.
+  """
+  archiveGroup(input: ArchiveGroupInput!): Group! @resolver
 }

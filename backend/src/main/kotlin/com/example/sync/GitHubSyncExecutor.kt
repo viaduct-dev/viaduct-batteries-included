@@ -3,10 +3,15 @@ package com.example.sync
 import com.pulumi.automation.ConfigValue
 import com.pulumi.automation.LocalWorkspace
 import com.pulumi.automation.PreviewOptions
+import com.pulumi.automation.RefreshOptions
 import com.pulumi.automation.UpOptions
 import com.example.AuthenticatedSupabaseClient
 import com.example.services.SyncJobEntity
 import org.slf4j.LoggerFactory
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
+private const val MAX_ATTEMPTS = 3
 
 class GitHubSyncExecutor(
     private val githubToken: String,
@@ -21,12 +26,12 @@ class GitHubSyncExecutor(
         repo: String,
         preview: Boolean = false,
     ) {
-        client.updateSyncJob(job.id, "RUNNING")
+        val newAttempt = job.attempt_count + 1
+        client.updateSyncJob(job.id, "RUNNING", attemptCount = newAttempt)
         try {
             val db = SupabaseStackDb(client)
 
             // Check that all group members with policies on this asset have verified GitHub identities.
-            // If any are missing, block the job rather than partially applying.
             val policies = db.loadPoliciesForAsset(job.asset_id)
             val missingIdentities = mutableListOf<String>()
             for (policy in policies) {
@@ -55,27 +60,51 @@ class GitHubSyncExecutor(
             stack.setConfig("github:token", ConfigValue(githubToken, true))
             stack.setConfig("github:owner", ConfigValue(githubOrg))
 
-            if (preview) {
-                val result = stack.preview(PreviewOptions.builder()
-                    .onStandardOutput { log.info("[preview] $it") }
-                    .build())
-                val changes = result.changeSummary()
-                val summary = if (changes.isNullOrEmpty()) "no changes"
-                    else changes.entries.joinToString(", ") { "${it.key}: ${it.value}" }
-                client.updateSyncJob(job.id, "SUCCEEDED", planSummary = summary)
-            } else {
-                val result = stack.up(UpOptions.builder()
-                    .onStandardOutput { log.info("[up] $it") }
-                    .build())
-                val changes = result.summary()?.resourceChanges()
-                val summary = if (changes.isNullOrEmpty()) "no changes"
-                    else changes.entries.joinToString(", ") { "${it.key}: ${it.value}" }
-                log.info("Sync job ${job.id} succeeded: $summary")
-                client.updateSyncJob(job.id, "SUCCEEDED", planSummary = summary)
+            when {
+                job.action == "IMPORT_ASSET" -> {
+                    // Seed Pulumi state from live external resources via stack refresh.
+                    val result = stack.refresh(RefreshOptions.builder()
+                        .onStandardOutput { log.info("[import] $it") }
+                        .build())
+                    val changes = result.summary()?.resourceChanges()
+                    val summary = if (changes.isNullOrEmpty()) "no changes"
+                        else changes.entries.joinToString(", ") { "${it.key}: ${it.value}" }
+                    log.info("Import job ${job.id} succeeded: $summary")
+                    client.updateSyncJob(job.id, "SUCCEEDED", planSummary = summary, attemptCount = newAttempt)
+                    client.updatePolicySyncStatus(job.asset_id, "HEALTHY")
+                }
+                preview -> {
+                    val result = stack.preview(PreviewOptions.builder()
+                        .onStandardOutput { log.info("[preview] $it") }
+                        .build())
+                    val changes = result.changeSummary()
+                    val summary = if (changes.isNullOrEmpty()) "no changes"
+                        else changes.entries.joinToString(", ") { "${it.key}: ${it.value}" }
+                    client.updateSyncJob(job.id, "SUCCEEDED", planSummary = summary, attemptCount = newAttempt)
+                }
+                else -> {
+                    val result = stack.up(UpOptions.builder()
+                        .onStandardOutput { log.info("[up] $it") }
+                        .build())
+                    val changes = result.summary()?.resourceChanges()
+                    val summary = if (changes.isNullOrEmpty()) "no changes"
+                        else changes.entries.joinToString(", ") { "${it.key}: ${it.value}" }
+                    log.info("Sync job ${job.id} succeeded: $summary")
+                    client.updateSyncJob(job.id, "SUCCEEDED", planSummary = summary, attemptCount = newAttempt)
+                    client.updatePolicySyncStatus(job.asset_id, "HEALTHY")
+                }
             }
         } catch (e: Exception) {
-            log.error("Sync job ${job.id} failed", e)
-            client.updateSyncJob(job.id, "FAILED", lastError = e.message?.take(2000))
+            log.error("Sync job ${job.id} failed (attempt $newAttempt)", e)
+            if (newAttempt >= MAX_ATTEMPTS) {
+                log.warn("Sync job ${job.id} EXHAUSTED after $newAttempt attempts")
+                client.updateSyncJob(job.id, "EXHAUSTED", lastError = e.message?.take(2000), attemptCount = newAttempt)
+                client.updatePolicySyncStatus(job.asset_id, "FAILED")
+            } else {
+                val retryAt = Instant.now().plus((newAttempt * 5).toLong(), ChronoUnit.MINUTES).toString()
+                client.updateSyncJob(job.id, "FAILED", lastError = e.message?.take(2000), attemptCount = newAttempt, nextRetryAt = retryAt)
+                client.updatePolicySyncStatus(job.asset_id, "DEGRADED")
+            }
         }
     }
 

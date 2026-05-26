@@ -434,6 +434,18 @@ class AuthenticatedSupabaseClient(
         return true
     }
 
+    suspend fun updateGroupStatus(groupId: String, status: String): com.example.services.CheckboxGroupEntity {
+        val response: HttpResponse = httpClient.patch("$supabaseUrl/rest/v1/groups") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            parameter("id", "eq.$groupId")
+            contentType(ContentType.Application.Json)
+            setBody("""{"status":"$status"}""")
+        }
+        return json.decodeFromString<List<com.example.services.CheckboxGroupEntity>>(response.bodyAsText()).first()
+    }
+
     // -------------------------------------------------------------------------
     // ViaAccess: Assets
     // -------------------------------------------------------------------------
@@ -909,12 +921,16 @@ class AuthenticatedSupabaseClient(
         id: String,
         status: String,
         lastError: String? = null,
-        planSummary: String? = null
+        planSummary: String? = null,
+        attemptCount: Int? = null,
+        nextRetryAt: String? = null,
     ): com.example.services.SyncJobEntity {
         val completedAt = if (status in listOf("SUCCEEDED", "FAILED", "EXHAUSTED", "ABANDONED")) "\"now()\"" else "null"
         val errorJson = if (lastError != null) "\"${lastError.replace("\"", "\\\"")}\"" else "null"
         val summaryJson = if (planSummary != null) "\"${planSummary.replace("\"", "\\\"")}\"" else "null"
-        val body = """{"status":"$status","last_error":$errorJson,"plan_summary":$summaryJson,"completed_at":$completedAt}"""
+        val nextRetryJson = if (nextRetryAt != null) "\"$nextRetryAt\"" else "null"
+        val attemptFragment = if (attemptCount != null) ""","attempt_count":$attemptCount""" else ""
+        val body = """{"status":"$status","last_error":$errorJson,"plan_summary":$summaryJson,"completed_at":$completedAt,"next_retry_at":$nextRetryJson$attemptFragment}"""
         val response: HttpResponse = httpClient.patch("$supabaseUrl/rest/v1/sync_jobs") {
             header("Authorization", "Bearer $accessToken")
             header("apikey", supabaseKey)
@@ -1200,6 +1216,23 @@ class AuthenticatedSupabaseClient(
             parameter("id", "eq.$id")
         }
         return json.decodeFromString<List<com.example.services.AsanaPortfolioPolicyEntity>>(response.bodyAsText()).firstOrNull()
+    }
+
+    /**
+     * Update sync_status on all policy rows for a given asset across all policy tables.
+     * Called by the sync executor after a job SUCCEEDS or FAILS.
+     */
+    suspend fun updatePolicySyncStatus(assetId: String, syncStatus: String) {
+        val body = """{"sync_status":"$syncStatus"}"""
+        for (table in listOf("github_repo_policies", "github_team_policies", "asana_project_policies", "asana_portfolio_policies")) {
+            httpClient.patch("$supabaseUrl/rest/v1/$table") {
+                header("Authorization", "Bearer $accessToken")
+                header("apikey", supabaseKey)
+                parameter("asset_id", "eq.$assetId")
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+        }
     }
 
     /**

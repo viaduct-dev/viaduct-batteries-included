@@ -1,15 +1,19 @@
 package com.example.resolvers
 
 import com.example.resolvers.resolverbases.MutationResolvers
+import com.example.services.TenantPermission
+import com.example.services.ViaAccessAuthorizationService
 import com.example.services.ViaAccessService
 import viaduct.api.resolver.Resolver
 import viaduct.api.grts.SyncJob
 
 @Resolver
 class ImportAssetResolver(
-    private val viaAccessService: ViaAccessService
+    private val viaAccessService: ViaAccessService,
+    private val authService: ViaAccessAuthorizationService,
 ) : MutationResolvers.ImportAsset() {
     override suspend fun resolve(ctx: Context): SyncJob {
+        ctx.requireTenantPermission(authService, "github", TenantPermission.EDITOR)
         val assetId = ctx.arguments.assetId
         val asset = viaAccessService.getGitHubRepoAssetById(ctx.authenticatedClient, assetId)?.first
             ?: viaAccessService.getGitHubTeamAssets(ctx.authenticatedClient)

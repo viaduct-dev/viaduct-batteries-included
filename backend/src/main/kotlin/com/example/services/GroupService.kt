@@ -109,4 +109,12 @@ open class GroupService(
     ): Boolean {
         return authenticatedClient.removeGroupMember(groupId, userId)
     }
+
+    suspend fun updateGroupStatus(
+        authenticatedClient: AuthenticatedSupabaseClient,
+        groupId: String,
+        status: String
+    ): CheckboxGroupEntity {
+        return authenticatedClient.updateGroupStatus(groupId, status)
+    }
 }
