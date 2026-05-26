@@ -23,6 +23,7 @@ type TenantAssetPolicy implements Node @scope(to: ["default"]) {
 }
 
 enum TenantPermission @scope(to: ["default"]) {
+  REQUESTER
   VIEWER
   EDITOR
   OWNER
@@ -132,4 +133,10 @@ extend type Mutation @scope(to: ["default"]) {
   Returns the group and one RECONCILE_ASSET sync job per asset.
   """
   grantGroupAccess(groupId: ID! @idOf(type: "Group"), grants: [AssetGrantInput!]!): GroupAccessResult! @resolver
+
+  """
+  Mark an asset requestable (true) or hidden (false) for self-service access requests.
+  Requires EDITOR or higher on the asset's tenant.
+  """
+  setAssetRequestable(assetId: ID!, requestable: Boolean!): Boolean! @resolver
 }

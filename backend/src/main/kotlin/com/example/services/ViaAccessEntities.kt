@@ -9,6 +9,7 @@ data class AssetEntity(
     val tenant_name: String,
     val external_id: String,
     val name: String,
+    val requestable: Boolean = false,
     val created_at: String
 )
 
@@ -122,6 +123,21 @@ data class ExternalIdentityEntity(
     val external_user_id: String,
     val external_username: String,
     val verified_at: String? = null
+)
+
+@Serializable
+data class AccessRequestEntity(
+    val id: String,
+    val tenant_name: String,
+    val asset_id: String,
+    val group_id: String,
+    val requested_permission: String,
+    val status: String,
+    val requested_by: String,
+    val reviewed_by: String? = null,
+    val requested_at: String,
+    val reviewed_at: String? = null,
+    val reviewer_note: String? = null
 )
 
 // Join entity for cross-tenant policy summary queries

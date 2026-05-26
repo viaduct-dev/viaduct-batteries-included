@@ -79,30 +79,28 @@ class GraphQLAuthenticationIntegrationTest : FunSpec({
 
     var accessToken: String? = null
 
+    val supabaseServiceKey = System.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        ?: "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz"
+
     beforeSpec {
-        // Create and authenticate a test user
+        // Create and authenticate a test user, then promote to admin so createGroup passes.
+        // createGroup requires TenantAsset(default): EDITOR; admin satisfies that constraint.
         runBlocking {
             try {
-                // Try to sign up a new user
                 supabaseClient.auth.signUpWith(Email) {
                     email = testEmail
                     password = testPassword
                 }
-
-                // Sign in to get the access token
                 supabaseClient.auth.signInWith(Email) {
                     email = testEmail
                     password = testPassword
                 }
-
                 accessToken = supabaseClient.auth.currentAccessTokenOrNull()
                 println("Test user authenticated: $testEmail")
                 println("Access token obtained: ${accessToken?.take(20)}...")
             } catch (e: Exception) {
                 println("Failed to create test user: ${e.message}")
                 println("Attempting to sign in with existing user...")
-
-                // If signup fails, try signing in (user might already exist)
                 try {
                     supabaseClient.auth.signInWith(Email) {
                         email = testEmail
@@ -113,6 +111,55 @@ class GraphQLAuthenticationIntegrationTest : FunSpec({
                 } catch (signInError: Exception) {
                     println("Failed to sign in: ${signInError.message}")
                     throw Exception("Could not authenticate test user", signInError)
+                }
+            }
+
+            // Grant TenantAsset(default): EDITOR to the test user via service role.
+            // createGroup requires has_tenant_permission('default', 'EDITOR') — admin alone is not enough.
+            // We do this by creating a group, adding the user to it, and granting EDITOR on the default tenant asset.
+            val userId = supabaseClient.auth.currentUserOrNull()?.id
+            if (userId != null) {
+                try {
+                    val adminHttp = io.ktor.client.HttpClient(io.ktor.client.engine.cio.CIO)
+                    val adminHeaders = fun io.ktor.client.request.HttpRequestBuilder.() {
+                        header("Authorization", "Bearer $supabaseServiceKey")
+                        header("apikey", supabaseServiceKey)
+                        header("Prefer", "return=representation")
+                        contentType(ContentType.Application.Json)
+                    }
+
+                    // Create a bootstrap group for this test user
+                    val groupResp = adminHttp.post("$supabaseUrl/rest/v1/groups") {
+                        adminHeaders()
+                        setBody("""{"name":"test-editor-group","created_by":"$userId"}""")
+                    }
+                    val groupBody = groupResp.bodyAsText()
+                    val groupId = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
+                        .readTree(groupBody)[0]["id"].asText()
+
+                    // Add user to group
+                    adminHttp.post("$supabaseUrl/rest/v1/group_members") {
+                        adminHeaders()
+                        setBody("""{"group_id":"$groupId","user_id":"$userId"}""")
+                    }
+
+                    // Look up the default tenant_asset id
+                    val taResp = adminHttp.get("$supabaseUrl/rest/v1/tenant_assets?tenant_name=eq.default&select=id") {
+                        header("Authorization", "Bearer $supabaseServiceKey")
+                        header("apikey", supabaseServiceKey)
+                    }
+                    val tenantAssetId = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
+                        .readTree(taResp.bodyAsText())[0]["id"].asText()
+
+                    // Grant EDITOR on default tenant to the group
+                    adminHttp.post("$supabaseUrl/rest/v1/tenant_asset_policies") {
+                        adminHeaders()
+                        setBody("""{"tenant_asset_id":"$tenantAssetId","group_id":"$groupId","permission":"EDITOR"}""")
+                    }
+
+                    println("Test user granted TenantAsset(default): EDITOR via group $groupId")
+                } catch (e: Exception) {
+                    println("Warning: could not grant test user EDITOR: ${e.message}")
                 }
             }
         }

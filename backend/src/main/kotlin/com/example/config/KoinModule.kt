@@ -68,6 +68,7 @@ fun appModule(supabaseUrl: String, supabaseKey: String) = module {
     singleOf(::CreateGroupResolver)
     singleOf(::AddGroupMemberResolver)
     singleOf(::RemoveGroupMemberResolver)
+    singleOf(::ArchiveGroupResolver)
 
     // Resolvers - Group Fields
     singleOf(::GroupMembersResolver)
@@ -124,6 +125,15 @@ fun appModule(supabaseUrl: String, supabaseKey: String) = module {
     singleOf(::PreviewAsanaAssetSyncResolver)
     singleOf(::ImportAsanaAssetResolver)
     singleOf(::SyncAsanaAssetResolver)
+
+    // Resolvers - Phase 4: Access requests
+    singleOf(::RequestableAssetsResolver)
+    singleOf(::PendingAccessRequestsResolver)
+    singleOf(::RequestGroupAccessResolver)
+    singleOf(::ApproveAccessRequestResolver)
+    singleOf(::RejectAccessRequestResolver)
+    singleOf(::CancelAccessRequestResolver)
+    singleOf(::SetAssetRequestableResolver)
 
     // Resolvers - Admin tenant
     singleOf(::GroupPoliciesQueryResolver)

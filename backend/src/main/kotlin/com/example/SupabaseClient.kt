@@ -487,6 +487,28 @@ class AuthenticatedSupabaseClient(
         return json.decodeFromString<List<com.example.services.AssetEntity>>(response.bodyAsText()).first()
     }
 
+    suspend fun setAssetRequestable(id: String, requestable: Boolean): com.example.services.AssetEntity {
+        val response: HttpResponse = httpClient.patch("$supabaseUrl/rest/v1/assets") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            parameter("id", "eq.$id")
+            contentType(ContentType.Application.Json)
+            setBody("""{"requestable":$requestable}""")
+        }
+        return json.decodeFromString<List<com.example.services.AssetEntity>>(response.bodyAsText()).first()
+    }
+
+    suspend fun insertAuditEvent(actorId: String, eventType: String, targetType: String, targetId: String, after: String? = null) {
+        val afterJson = if (after != null) after else "null"
+        httpClient.post("$supabaseUrl/rest/v1/audit_events") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            contentType(ContentType.Application.Json)
+            setBody("""{"actor_id":"$actorId","event_type":"$eventType","target_type":"AccessRequest","target_id":"$targetId","after":$afterJson}""")
+        }
+    }
+
     // -------------------------------------------------------------------------
     // ViaAccess: TenantAssets
     // -------------------------------------------------------------------------
@@ -689,6 +711,25 @@ class AuthenticatedSupabaseClient(
         return json.decodeFromString<List<com.example.services.GitHubRepoPolicyEntity>>(response.bodyAsText()).first()
     }
 
+    // Upsert variant: updates permission on the existing policy row if it already exists.
+    // Used by approval flow where the group may already have a policy at a different level.
+    suspend fun upsertGitHubRepoPolicy(assetId: String, groupId: String, permission: String): com.example.services.GitHubRepoPolicyEntity {
+        // Check for existing policy first; if present, update permission in-place.
+        val existing = getGitHubRepoPoliciesByAsset(assetId).firstOrNull { it.group_id == groupId }
+        if (existing != null) {
+            val response: HttpResponse = httpClient.patch("$supabaseUrl/rest/v1/github_repo_policies") {
+                header("Authorization", "Bearer $accessToken")
+                header("apikey", supabaseKey)
+                header("Prefer", "return=representation")
+                parameter("id", "eq.${existing.id}")
+                contentType(ContentType.Application.Json)
+                setBody("""{"permission":"$permission"}""")
+            }
+            return json.decodeFromString<List<com.example.services.GitHubRepoPolicyEntity>>(response.bodyAsText()).first()
+        }
+        return createGitHubRepoPolicy(assetId, groupId, permission)
+    }
+
     suspend fun deleteGitHubRepoPolicy(id: String): Boolean {
         // Deleting the parent policies row cascades to github_repo_policies
         httpClient.delete("$supabaseUrl/rest/v1/policies") {
@@ -727,6 +768,22 @@ class AuthenticatedSupabaseClient(
             setBody("""{"id":"$policyId","asset_id":"$assetId","group_id":"$groupId","permission":"$permission"}""")
         }
         return json.decodeFromString<List<com.example.services.GitHubTeamPolicyEntity>>(response.bodyAsText()).first()
+    }
+
+    suspend fun upsertGitHubTeamPolicy(assetId: String, groupId: String, permission: String): com.example.services.GitHubTeamPolicyEntity {
+        val existing = getGitHubTeamPoliciesByAsset(assetId).firstOrNull { it.group_id == groupId }
+        if (existing != null) {
+            val response: HttpResponse = httpClient.patch("$supabaseUrl/rest/v1/github_team_policies") {
+                header("Authorization", "Bearer $accessToken")
+                header("apikey", supabaseKey)
+                header("Prefer", "return=representation")
+                parameter("id", "eq.${existing.id}")
+                contentType(ContentType.Application.Json)
+                setBody("""{"permission":"$permission"}""")
+            }
+            return json.decodeFromString<List<com.example.services.GitHubTeamPolicyEntity>>(response.bodyAsText()).first()
+        }
+        return createGitHubTeamPolicy(assetId, groupId, permission)
     }
 
     suspend fun deleteGitHubTeamPolicy(id: String): Boolean {
@@ -839,6 +896,22 @@ class AuthenticatedSupabaseClient(
         return json.decodeFromString<List<com.example.services.AsanaProjectPolicyEntity>>(response.bodyAsText()).first()
     }
 
+    suspend fun upsertAsanaProjectPolicy(assetId: String, groupId: String, permission: String): com.example.services.AsanaProjectPolicyEntity {
+        val existing = getAsanaProjectPoliciesByAsset(assetId).firstOrNull { it.group_id == groupId }
+        if (existing != null) {
+            val response: HttpResponse = httpClient.patch("$supabaseUrl/rest/v1/asana_project_policies") {
+                header("Authorization", "Bearer $accessToken")
+                header("apikey", supabaseKey)
+                header("Prefer", "return=representation")
+                parameter("id", "eq.${existing.id}")
+                contentType(ContentType.Application.Json)
+                setBody("""{"permission":"$permission"}""")
+            }
+            return json.decodeFromString<List<com.example.services.AsanaProjectPolicyEntity>>(response.bodyAsText()).first()
+        }
+        return createAsanaProjectPolicy(assetId, groupId, permission)
+    }
+
     suspend fun deleteAsanaProjectPolicy(id: String): Boolean {
         httpClient.delete("$supabaseUrl/rest/v1/policies") {
             header("Authorization", "Bearer $accessToken")
@@ -876,6 +949,22 @@ class AuthenticatedSupabaseClient(
             setBody("""{"id":"$policyId","asset_id":"$assetId","group_id":"$groupId","permission":"$permission"}""")
         }
         return json.decodeFromString<List<com.example.services.AsanaPortfolioPolicyEntity>>(response.bodyAsText()).first()
+    }
+
+    suspend fun upsertAsanaPortfolioPolicy(assetId: String, groupId: String, permission: String): com.example.services.AsanaPortfolioPolicyEntity {
+        val existing = getAsanaPortfolioPoliciesByAsset(assetId).firstOrNull { it.group_id == groupId }
+        if (existing != null) {
+            val response: HttpResponse = httpClient.patch("$supabaseUrl/rest/v1/asana_portfolio_policies") {
+                header("Authorization", "Bearer $accessToken")
+                header("apikey", supabaseKey)
+                header("Prefer", "return=representation")
+                parameter("id", "eq.${existing.id}")
+                contentType(ContentType.Application.Json)
+                setBody("""{"permission":"$permission"}""")
+            }
+            return json.decodeFromString<List<com.example.services.AsanaPortfolioPolicyEntity>>(response.bodyAsText()).first()
+        }
+        return createAsanaPortfolioPolicy(assetId, groupId, permission)
     }
 
     suspend fun deleteAsanaPortfolioPolicy(id: String): Boolean {
@@ -1233,6 +1322,85 @@ class AuthenticatedSupabaseClient(
                 setBody(body)
             }
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // ViaAccess Phase 4: Access requests
+    // -------------------------------------------------------------------------
+
+    suspend fun getRequestableAssets(tenantName: String?, query: String?): List<com.example.services.AssetEntity> {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/assets") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("requestable", "eq.true")
+            if (tenantName != null) parameter("tenant_name", "eq.$tenantName")
+            if (!query.isNullOrBlank()) parameter("name", "ilike.*$query*")
+        }
+        return json.decodeFromString(response.bodyAsText())
+    }
+
+    suspend fun createAccessRequest(
+        tenantName: String,
+        assetId: String,
+        groupId: String,
+        requestedPermission: String,
+        requestedBy: String,
+    ): com.example.services.AccessRequestEntity {
+        val body = """{"tenant_name":"$tenantName","asset_id":"$assetId","group_id":"$groupId","requested_permission":"$requestedPermission","requested_by":"$requestedBy"}"""
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/access_requests") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }
+        return json.decodeFromString<List<com.example.services.AccessRequestEntity>>(response.bodyAsText()).first()
+    }
+
+    suspend fun getAccessRequestById(id: String): com.example.services.AccessRequestEntity? {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/access_requests") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("id", "eq.$id")
+        }
+        return json.decodeFromString<List<com.example.services.AccessRequestEntity>>(response.bodyAsText()).firstOrNull()
+    }
+
+    suspend fun getPendingAccessRequests(tenantName: String): List<com.example.services.AccessRequestEntity> {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/access_requests") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("tenant_name", "eq.$tenantName")
+            parameter("status", "eq.PENDING")
+            parameter("order", "requested_at.asc")
+        }
+        return json.decodeFromString(response.bodyAsText())
+    }
+
+    // Atomic compare-and-swap: only transitions from PENDING to the target status.
+    // Returns null if the row was already processed by another reviewer (status != PENDING).
+    suspend fun transitionAccessRequestFromPending(
+        id: String,
+        status: String,
+        reviewedBy: String? = null,
+        reviewerNote: String? = null,
+    ): com.example.services.AccessRequestEntity? {
+        val reviewedByJson = if (reviewedBy != null) "\"$reviewedBy\"" else "null"
+        val noteJson = if (reviewerNote != null) "\"${reviewerNote.replace("\"", "\\\"")}\"" else "null"
+        val body = """{"status":"$status","reviewed_by":$reviewedByJson,"reviewer_note":$noteJson,"reviewed_at":"now()"}"""
+        val response: HttpResponse = httpClient.patch("$supabaseUrl/rest/v1/access_requests") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            parameter("id", "eq.$id")
+            parameter("status", "eq.PENDING")  // Only update if still PENDING — concurrent reviewer gets empty response
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }
+        return json.decodeFromString<List<com.example.services.AccessRequestEntity>>(response.bodyAsText()).firstOrNull()
     }
 
     /**

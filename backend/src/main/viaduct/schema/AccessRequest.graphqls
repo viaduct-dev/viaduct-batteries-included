@@ -1,0 +1,86 @@
+"""
+A self-service request for a group to gain access to an asset.
+Created by a REQUESTER. Approved or rejected by a tenant EDITOR/OWNER.
+Approval atomically creates the live policy and enqueues RECONCILE_ASSET.
+"""
+type AccessRequest implements Node @scope(to: ["default"]) {
+  id: ID!
+  tenantName: String!
+  assetId: String!
+  groupId: String!
+  requestedPermission: String!
+  status: AccessRequestStatus!
+  requestedBy: String!
+  reviewedBy: String
+  requestedAt: String!
+  reviewedAt: String
+  reviewerNote: String
+}
+
+"""
+A discoverable asset that a REQUESTER can ask for access to.
+Deliberately does not expose policy state, group grants, or sync health.
+"""
+type RequestableAsset @scope(to: ["default"]) {
+  id: ID!
+  tenantName: String!
+  assetType: String!
+  name: String!
+  externalId: String!
+  availablePermissions: [String!]!
+}
+
+enum AccessRequestStatus @scope(to: ["default"]) {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELED
+}
+
+input RequestGroupAccessInput @scope(to: ["default"]) {
+  assetId: ID!
+  groupId: ID! @idOf(type: "Group")
+  requestedPermission: String!
+}
+
+extend type Query @scope(to: ["default"]) {
+  """
+  Discover assets available for self-service access requests.
+  Any authenticated user may call this — only requestable assets are returned.
+  Does not expose policy state, group membership, sync health, or audit events.
+  """
+  requestableAssets(tenantName: String, query: String): [RequestableAsset!]! @resolver
+
+  """
+  List access requests pending review for a tenant.
+  Requires TenantAsset(tenantName) EDITOR or higher.
+  Requesters can also see their own past requests here.
+  """
+  pendingAccessRequests(tenantName: String!): [AccessRequest!]! @resolver
+}
+
+extend type Mutation @scope(to: ["default"]) {
+  """
+  Submit a self-service access request for a group on a requestable asset.
+  Caller must have at least REQUESTER on the asset's tenant.
+  """
+  requestGroupAccess(input: RequestGroupAccessInput!): AccessRequest! @resolver
+
+  """
+  Approve a pending access request. Creates/updates the live policy and enqueues RECONCILE_ASSET.
+  Requires TenantAsset(tenantName) EDITOR or higher.
+  """
+  approveAccessRequest(id: ID! @idOf(type: "AccessRequest"), note: String): AccessRequest! @resolver
+
+  """
+  Reject a pending access request. Never touches live policy state.
+  Requires TenantAsset(tenantName) EDITOR or higher.
+  """
+  rejectAccessRequest(id: ID! @idOf(type: "AccessRequest"), note: String): AccessRequest! @resolver
+
+  """
+  Cancel a pending access request.
+  Allowed by the original requester or a tenant EDITOR/OWNER.
+  """
+  cancelAccessRequest(id: ID! @idOf(type: "AccessRequest")): AccessRequest! @resolver
+}
