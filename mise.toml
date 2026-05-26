@@ -2,6 +2,8 @@
 java = "21"
 podman = "latest"
 "ubi:supabase/cli" = { version = "latest", exe = "supabase" }
+"ubi:cloudflare/cloudflared" = { version = "latest", exe = "cloudflared" }
+# ngrok is installed by `mise run tunnel-setup` into ~/.local/bin/ngrok (not in mise registry)
 
 [env]
 # Podman configuration - dynamically detect socket path
@@ -11,6 +13,10 @@ DOCKER_HOST = "{{exec(command='.mise/scripts/get-podman-socket.sh')}}"
 SUPABASE_URL = "http://127.0.0.1:54321"
 SUPABASE_ANON_KEY = "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH"
 SUPABASE_SERVICE_ROLE_KEY = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz"
+
+# ngrok stable domain for GitHub OAuth tunneling
+# NGROK_AUTHTOKEN must be set in your shell or .env.local (never commit it)
+NGROK_DOMAIN = "veneering-unbitten-hemstitch.ngrok-free.dev"
 
 # Frontend environment (Vite/React)
 VITE_SUPABASE_URL = "http://127.0.0.1:54321"
@@ -123,6 +129,60 @@ podman system connection list
 echo ""
 echo "=== Supabase Status ==="
 supabase status
+"""
+
+[tasks.tunnel-setup]
+description = "One-time setup: install ngrok, save authtoken, and claim your free static domain"
+run = """
+set -e
+# Install ngrok if not present
+NGROK_BIN="$HOME/.local/bin/ngrok"
+if [ ! -x "$NGROK_BIN" ]; then
+  echo "Installing ngrok..."
+  mkdir -p "$HOME/.local/bin"
+  curl -sSL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-darwin-amd64.zip -o /tmp/ngrok.zip
+  unzip -o /tmp/ngrok.zip -d "$HOME/.local/bin"
+  rm /tmp/ngrok.zip
+  echo "ngrok installed to $NGROK_BIN"
+fi
+
+if [ -z "${NGROK_AUTHTOKEN}" ]; then
+  echo ""
+  echo "Next steps:"
+  echo "  1. Sign up / log in at https://dashboard.ngrok.com"
+  echo "  2. Copy your authtoken from https://dashboard.ngrok.com/authtokens"
+  echo "  3. Set NGROK_AUTHTOKEN in mise.toml"
+  echo "  4. Claim your free static domain at https://dashboard.ngrok.com/domains"
+  echo "  5. Set NGROK_DOMAIN in mise.toml"
+  echo "  6. Re-run: mise run tunnel-setup"
+  exit 0
+fi
+
+$NGROK_BIN config add-authtoken ${NGROK_AUTHTOKEN}
+echo ""
+echo "Auth token saved."
+echo ""
+echo "Your GitHub OAuth callback URL will be:"
+echo "  https://${NGROK_DOMAIN}/auth/v1/callback"
+"""
+
+[tasks.tunnel]
+description = "Start stable ngrok tunnel exposing local Supabase on your static domain"
+run = """
+NGROK_BIN="$HOME/.local/bin/ngrok"
+if [ ! -x "$NGROK_BIN" ]; then
+  echo "ngrok not installed — run 'mise run tunnel-setup' first."
+  exit 1
+fi
+if [ -z "${NGROK_AUTHTOKEN}" ] || [ -z "${NGROK_DOMAIN}" ]; then
+  echo "ERROR: Set NGROK_AUTHTOKEN and NGROK_DOMAIN in mise.toml first."
+  echo "Run 'mise run tunnel-setup' to get started."
+  exit 1
+fi
+echo "Starting tunnel: https://${NGROK_DOMAIN} -> http://127.0.0.1:54321"
+echo "GitHub OAuth callback URL: https://${NGROK_DOMAIN}/auth/v1/callback"
+echo ""
+$NGROK_BIN http --domain=${NGROK_DOMAIN} 54321
 """
 
 [tasks.test]
