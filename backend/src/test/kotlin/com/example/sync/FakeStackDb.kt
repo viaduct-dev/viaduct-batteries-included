@@ -1,4 +1,4 @@
-package com.viaduct.sync
+package com.example.sync
 
 /**
  * In-memory StackDb for unit tests. Controls policy data without a running Supabase instance.

@@ -46,8 +46,9 @@ open class ViaAccessService(
         userId: String,
         provider: String,
         externalUserId: String,
-        externalUsername: String
-    ): ExternalIdentityEntity = client.upsertExternalIdentity(userId, provider, externalUserId, externalUsername)
+        externalUsername: String,
+        verified: Boolean = false
+    ): ExternalIdentityEntity = client.upsertExternalIdentity(userId, provider, externalUserId, externalUsername, verified)
 
     open suspend fun getPolicySummaryForGroup(client: AuthenticatedSupabaseClient, groupId: String): List<PolicySummaryRow> =
         client.getPolicySummaryForGroup(groupId)
@@ -169,7 +170,7 @@ open class ViaAccessService(
         externalUsername: String
     ): Pair<String, ExternalIdentityEntity> {
         val userId = client.inviteUserByEmail(email, supabaseService.serviceRoleKey)
-        val identity = client.upsertExternalIdentity(userId, provider, externalUserId, externalUsername)
+        val identity = client.upsertExternalIdentity(userId, provider, externalUserId, externalUsername, verified = true)
         return userId to identity
     }
 }

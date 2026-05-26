@@ -47,6 +47,7 @@ class ImportAsanaIdentitiesResolver(
                     provider = "asana",
                     externalUserId = user.gid,
                     externalUsername = user.name,
+                    verified = true,
                 )
                 imported++
             } else {

@@ -21,7 +21,8 @@ class SetExternalIdentityResolver(
             userId = input.userId,
             provider = "github",
             externalUserId = input.externalUserId,
-            externalUsername = input.externalUsername
+            externalUsername = input.externalUsername,
+            verified = true
         )
         return entity.toGrt(ctx)
     }

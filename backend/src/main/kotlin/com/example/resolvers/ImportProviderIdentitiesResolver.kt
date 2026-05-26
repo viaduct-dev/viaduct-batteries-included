@@ -47,6 +47,7 @@ class ImportProviderIdentitiesResolver(
                     provider = "github",
                     externalUserId = member.id.toString(),
                     externalUsername = member.login,
+                    verified = true,
                 )
                 imported++
             } else {

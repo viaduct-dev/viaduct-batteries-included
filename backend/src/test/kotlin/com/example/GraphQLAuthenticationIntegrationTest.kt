@@ -21,10 +21,10 @@ import io.ktor.server.testing.*
 import kotlinx.coroutines.runBlocking
 import org.koin.dsl.koinApplication
 import org.koin.logger.slf4jLogger
-import viaduct.service.BasicViaductFactory
-import viaduct.service.SchemaRegistrationInfo
+import viaduct.api.bootstrap.ViaductTenantAPIBootstrapper
 import viaduct.service.SchemaScopeInfo
-import viaduct.service.TenantRegistrationInfo
+import viaduct.service.runtime.SchemaConfiguration
+import viaduct.service.runtime.StandardViaduct
 
 /**
  * Integration test for GraphQL authentication with Supabase.
@@ -47,19 +47,22 @@ class GraphQLAuthenticationIntegrationTest : FunSpec({
     // Initialize Viaduct and Koin (mirrors CracMain Phase 1)
     val cracInjector = DelegatingTenantCodeInjector()
 
-    val viaduct = BasicViaductFactory.create(
-        schemaRegistrationInfo = SchemaRegistrationInfo(
-            scopes = listOf(
-                SchemaScopeInfo("public", setOf("public")),
-                SchemaScopeInfo("default", setOf("default", "public")),
-                SchemaScopeInfo("admin", setOf("default", "admin", "public"))
-            )
-        ),
-        tenantRegistrationInfo = TenantRegistrationInfo(
-            tenantPackagePrefix = "com.example",
-            tenantCodeInjector = cracInjector
+    val scopes = listOf(
+        SchemaScopeInfo("public",  setOf("public")),
+        SchemaScopeInfo("default", setOf("default", "public")),
+        SchemaScopeInfo("github",  setOf("default", "github", "public")),
+        SchemaScopeInfo("asana",   setOf("default", "asana",  "public")),
+        SchemaScopeInfo("admin",   setOf("default", "github", "asana", "admin", "public"))
+    ).map { SchemaConfiguration.ScopeConfig(it.schemaId.id, it.scopesToApply ?: emptySet()) }
+
+    val viaduct = StandardViaduct.Builder()
+        .withTenantAPIBootstrapperBuilder(
+            ViaductTenantAPIBootstrapper.Builder()
+                .tenantPackagePrefix("com.example")
+                .tenantCodeInjector(cracInjector)
         )
-    )
+        .withSchemaConfiguration(SchemaConfiguration.fromResources(scopes = scopes.toSet()))
+        .build()
 
     val koin = koinApplication {
         slf4jLogger()

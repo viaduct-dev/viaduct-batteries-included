@@ -1,4 +1,4 @@
-package com.viaduct.sync
+package com.example.sync
 
 import com.pulumi.test.Mocks
 import com.pulumi.test.PulumiTest

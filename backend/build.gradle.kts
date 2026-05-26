@@ -26,6 +26,7 @@ dependencies {
     testCompileOnly("com.airbnb.viaduct:api:${libs.versions.viaduct.get()}")
     testImplementation("com.airbnb.viaduct:api:${libs.versions.viaduct.get()}")
     testCompileOnly("com.airbnb.viaduct:runtime:${libs.versions.viaduct.get()}")
+    testImplementation("com.airbnb.viaduct:buildtime:${libs.versions.viaduct.get()}")
     testCompileOnly("javax.inject:javax.inject:1")
 
     // Ktor server (upgraded to 3.2.0 for Koin 4.x compatibility)

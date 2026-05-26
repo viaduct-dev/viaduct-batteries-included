@@ -21,7 +21,8 @@ class SetAsanaIdentityResolver(
             userId = input.userId,
             provider = "asana",
             externalUserId = input.externalUserId,
-            externalUsername = input.externalUsername
+            externalUsername = input.externalUsername,
+            verified = true
         )
         return entity.toGrt(ctx)
     }

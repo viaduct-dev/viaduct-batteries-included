@@ -2,24 +2,20 @@ package com.example.resolvers
 
 import com.example.resolvers.resolverbases.MutationResolvers
 import com.example.services.GroupService
-import com.example.services.TenantPermission
-import com.example.services.ViaAccessAuthorizationService
 import viaduct.api.resolver.Resolver
 import viaduct.api.grts.Group
 
 /**
  * Resolver for the createGroup mutation.
- * Creates a new group with the authenticated user as the owner.
- * The owner is automatically added as a member via database trigger.
+ * Any authenticated user may create their own group — no tenant permission required.
+ * Managing other groups' membership requires default-tenant EDITOR (enforced in
+ * AddGroupMemberResolver / RemoveGroupMemberResolver).
  */
 @Resolver
 class CreateGroupResolver(
     private val groupService: GroupService,
-    private val authService: ViaAccessAuthorizationService,
 ) : MutationResolvers.CreateGroup() {
     override suspend fun resolve(ctx: Context): Group {
-        ctx.requireTenantPermission(authService, "default", TenantPermission.EDITOR)
-
         val input = ctx.arguments.input
         val userId = ctx.userId
 
