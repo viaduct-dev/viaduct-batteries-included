@@ -1,4 +1,4 @@
-package com.viaduct.checkers
+package com.example.checkers
 
 import com.example.config.RequestContext
 import com.example.services.GroupService

@@ -62,7 +62,7 @@ class GroupsWorkingTest : FunSpec({
         val createdGroup = authClient.createGroup(
             name = groupName,
             description = "Test description",
-            ownerId = userId!!
+            createdBy = userId!!
         )
 
         println("✓ Group created: ${createdGroup.name}")
@@ -75,7 +75,7 @@ class GroupsWorkingTest : FunSpec({
 
         val foundGroup = groups.find { it.name == groupName }
         foundGroup shouldNotBe null
-        foundGroup!!.owner_id shouldBe userId
+        foundGroup!!.created_by shouldBe userId
         println("✓ Group appears in query results")
 
         // 4. Query the specific group by ID

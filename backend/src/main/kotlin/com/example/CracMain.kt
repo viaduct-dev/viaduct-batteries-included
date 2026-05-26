@@ -1,7 +1,12 @@
 package com.example
 
 import com.typesafe.config.ConfigFactory
-import com.viaduct.checkers.GroupMembershipCheckerExecutorFactory
+import com.example.checkers.GroupMembershipCheckerExecutorFactory
+import com.example.checkers.TenantAccessCheckerExecutorFactory
+import com.example.services.ViaAccessService
+import viaduct.engine.api.ViaductSchema
+import viaduct.engine.api.spi.CheckerExecutor
+import viaduct.engine.api.spi.CheckerExecutorFactory
 import com.example.config.DelegatingTenantCodeInjector
 import com.example.config.KoinTenantCodeInjector
 import com.example.config.appModule
@@ -86,10 +91,14 @@ fun main() {
     logger.info("Pre-initializing Viaduct schema...")
 
     val scopes = listOf(
-        SchemaScopeInfo("public", setOf("public")),
+        SchemaScopeInfo("public",  setOf("public")),
         SchemaScopeInfo("default", setOf("default", "public")),
-        SchemaScopeInfo("admin", setOf("default", "admin", "public"))
+        SchemaScopeInfo("github",  setOf("default", "github", "public")),
+        SchemaScopeInfo("asana",   setOf("default", "asana",  "public")),
+        SchemaScopeInfo("admin",   setOf("default", "github", "asana", "admin", "public"))
     ).map { SchemaConfiguration.ScopeConfig(it.schemaId.id, it.scopesToApply ?: emptySet()) }
+
+    val viaAccessService = koin.get<ViaAccessService>()
 
     val viaduct = StandardViaduct.Builder()
         .withTenantAPIBootstrapperBuilder(
@@ -99,7 +108,16 @@ fun main() {
         )
         .withSchemaConfiguration(SchemaConfiguration.fromResources(scopes = scopes.toSet()))
         .withCheckerExecutorFactoryCreator { _ ->
-            GroupMembershipCheckerExecutorFactory(groupService)
+            object : CheckerExecutorFactory {
+                private val groupChecker = GroupMembershipCheckerExecutorFactory(groupService)
+                private val tenantChecker = TenantAccessCheckerExecutorFactory(viaAccessService)
+                override fun checkerExecutorForField(schema: ViaductSchema, typeName: String, fieldName: String): CheckerExecutor? =
+                    groupChecker.checkerExecutorForField(schema, typeName, fieldName)
+                        ?: tenantChecker.checkerExecutorForField(schema, typeName, fieldName)
+                override fun checkerExecutorForType(schema: ViaductSchema, typeName: String): CheckerExecutor? =
+                    groupChecker.checkerExecutorForType(schema, typeName)
+                        ?: tenantChecker.checkerExecutorForType(schema, typeName)
+            }
         }
         .build()
 

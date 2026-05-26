@@ -1,0 +1,135 @@
+"""
+Represents the ability to administer a Viaduct tenant.
+Governance-only — does not produce RECONCILE_ASSET jobs.
+"""
+type TenantAsset implements Node @scope(to: ["default"]) {
+  id: ID!
+  tenantName: String!
+  policies: [TenantAssetPolicy!]! @resolver
+  createdAt: String!
+}
+
+"""
+Grants a group a permission level on a tenant.
+"""
+type TenantAssetPolicy implements Node @scope(to: ["default"]) {
+  id: ID!
+  tenantAssetId: String!
+  groupId: String!
+  tenantAsset: TenantAsset! @resolver
+  group: Group! @resolver
+  permission: TenantPermission!
+  createdAt: String!
+}
+
+enum TenantPermission @scope(to: ["default"]) {
+  VIEWER
+  EDITOR
+  OWNER
+}
+
+"""
+An async sync/import/preview job for an external asset.
+"""
+type SyncJob implements Node @scope(to: ["default"]) {
+  id: ID!
+  assetId: String!
+  assetType: String!
+  action: SyncJobAction!
+  status: SyncJobStatus!
+  """Human-readable diff populated after a SUCCEEDED PREVIEW_ASSET job."""
+  planSummary: String
+  lastError: String
+  attemptCount: Int!
+  createdAt: String!
+  completedAt: String
+}
+
+enum SyncJobAction @scope(to: ["default"]) {
+  RECONCILE_ASSET
+  PREVIEW_ASSET
+  IMPORT_ASSET
+}
+
+enum SyncJobStatus @scope(to: ["default"]) {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  BLOCKED
+  EXHAUSTED
+  ABANDONED
+}
+
+"""
+A ViaAccess user's mapped identity in an external provider.
+"""
+type ExternalIdentity implements Node @scope(to: ["default"]) {
+  id: ID!
+  userId: String!
+  provider: String!
+  externalUserId: String!
+  externalUsername: String!
+  """Null until confirmed by a reconcile or set during provider import."""
+  verifiedAt: String
+}
+
+"""
+One asset+permission pair within a grantGroupAccess call.
+The asset may belong to any tenant — the resolver routes to the right policy table.
+"""
+input AssetGrantInput @scope(to: ["default"]) {
+  assetId: ID!
+  permission: String!
+}
+
+"""
+Result of a cross-tenant grantGroupAccess mutation.
+"""
+type GroupAccessResult @scope(to: ["default"]) {
+  group: Group!
+  """One sync job enqueued per asset granted."""
+  syncJobs: [SyncJob!]!
+}
+
+input GrantTenantAccessInput @scope(to: ["default"]) {
+  tenantAssetId: ID! @idOf(type: "TenantAsset")
+  groupId: ID! @idOf(type: "Group")
+  permission: TenantPermission!
+}
+
+input RevokeTenantAccessInput @scope(to: ["default"]) {
+  tenantAssetPolicyId: ID! @idOf(type: "TenantAssetPolicy")
+}
+
+extend type Query @scope(to: ["default"]) {
+  """Get all tenant assets."""
+  tenantAssets: [TenantAsset!]! @resolver
+
+  """Get a specific tenant asset by name."""
+  tenantAsset(tenantName: String!): TenantAsset @resolver
+
+  """Poll sync job status — used by clients and agents waiting on async operations."""
+  syncJob(id: ID! @idOf(type: "SyncJob")): SyncJob @resolver
+
+  """Get external identities for the current user."""
+  myExternalIdentities: [ExternalIdentity!]! @resolver
+}
+
+extend type Mutation @scope(to: ["default"]) {
+  """
+  Grant a group access to a tenant. Requires OWNER on that TenantAsset.
+  OWNER can grant VIEWER, EDITOR, or OWNER. EDITOR can grant VIEWER or EDITOR.
+  """
+  grantTenantAccess(input: GrantTenantAccessInput!): TenantAssetPolicy! @resolver
+
+  """Revoke a tenant access grant. Requires OWNER on that TenantAsset."""
+  revokeTenantAccess(input: RevokeTenantAccessInput!): Boolean! @resolver
+
+  """
+  Grant a group access to multiple assets across any tenant in a single mutation.
+  Each asset's tenant is detected automatically from the asset record.
+  Returns the group and one RECONCILE_ASSET sync job per asset.
+  """
+  grantGroupAccess(groupId: ID! @idOf(type: "Group"), grants: [AssetGrantInput!]!): GroupAccessResult! @resolver
+}

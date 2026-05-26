@@ -61,6 +61,10 @@ dependencies {
     implementation(libs.ktor.client.cio)
     implementation(libs.java.jwt)
 
+    // Pulumi Java SDK (stack programs and unit testing)
+    implementation("com.pulumi:pulumi:1.13.2")
+    implementation("com.pulumi:github:6.7.2")
+
     // Ktor test dependencies (upgraded to 3.2.0)
     testImplementation("io.ktor:ktor-server-test-host:3.2.0")
     testImplementation("io.ktor:ktor-client-content-negotiation:3.2.0")

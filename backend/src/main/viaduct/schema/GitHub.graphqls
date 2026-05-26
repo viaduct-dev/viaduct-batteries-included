@@ -1,0 +1,176 @@
+"""A GitHub repository managed by ViaAccess."""
+type GitHubRepoAsset implements Node @scope(to: ["github"]) {
+  id: ID!
+  name: String!
+  owner: String!
+  repo: String!
+  policies: [GitHubRepoPolicy!]! @resolver
+  """Users with access to this repo (via group policies), with reconciliation status."""
+  providerUsers: [ProviderUserView!]! @resolver
+  createdAt: String!
+}
+
+"""A GitHub team managed by ViaAccess."""
+type GitHubTeamAsset implements Node @scope(to: ["github"]) {
+  id: ID!
+  name: String!
+  org: String!
+  slug: String!
+  policies: [GitHubTeamPolicy!]! @resolver
+  """Users with access to this team (via group policies), with reconciliation status."""
+  providerUsers: [ProviderUserView!]! @resolver
+  createdAt: String!
+}
+
+"""Grants a ViaAccess group a permission level on a GitHub repository."""
+type GitHubRepoPolicy implements Node @scope(to: ["github"]) {
+  id: ID!
+  groupId: String!
+  assetId: String!
+  permission: GitHubRepoPermission!
+  syncStatus: PolicySyncStatus!
+}
+
+"""Grants a ViaAccess group membership in a GitHub team."""
+type GitHubTeamPolicy implements Node @scope(to: ["github"]) {
+  id: ID!
+  groupId: String!
+  assetId: String!
+  permission: GitHubTeamPermission!
+  syncStatus: PolicySyncStatus!
+}
+
+enum GitHubRepoPermission @scope(to: ["github"]) {
+  READ
+  TRIAGE
+  WRITE
+  MAINTAIN
+  ADMIN
+}
+
+enum GitHubTeamPermission @scope(to: ["github"]) {
+  MEMBER
+  MAINTAINER
+}
+
+"""
+A user found in the GitHub org, with an optional match to a ViaAccess user.
+"""
+type ProviderUser @scope(to: ["github"]) {
+  externalUserId: String!
+  externalUsername: String!
+  email: String
+  """Set if a ViaAccess user was found by email match."""
+  matchedUserId: String
+}
+
+type IdentityImportSummary @scope(to: ["github"]) {
+  imported: Int!
+  alreadyMapped: Int!
+  unmatched: Int!
+  unmatchedUsernames: [String!]!
+}
+
+input RegisterGitHubRepoInput @scope(to: ["github"]) {
+  owner: String!
+  repo: String!
+  """Human-readable label for UI display."""
+  name: String!
+}
+
+input RegisterGitHubTeamInput @scope(to: ["github"]) {
+  org: String!
+  slug: String!
+  name: String!
+}
+
+input CreateGitHubRepoPolicyInput @scope(to: ["github"]) {
+  assetId: ID! @idOf(type: "GitHubRepoAsset")
+  groupId: ID! @idOf(type: "Group")
+  permission: GitHubRepoPermission!
+}
+
+input DeleteGitHubRepoPolicyInput @scope(to: ["github"]) {
+  policyId: ID! @idOf(type: "GitHubRepoPolicy")
+}
+
+input CreateGitHubTeamPolicyInput @scope(to: ["github"]) {
+  assetId: ID! @idOf(type: "GitHubTeamAsset")
+  groupId: ID! @idOf(type: "Group")
+  permission: GitHubTeamPermission!
+}
+
+input DeleteGitHubTeamPolicyInput @scope(to: ["github"]) {
+  policyId: ID! @idOf(type: "GitHubTeamPolicy")
+}
+
+input SetExternalIdentityInput @scope(to: ["github"]) {
+  userId: String!
+  externalUserId: String!
+  externalUsername: String!
+}
+
+extend type Query @scope(to: ["github"]) {
+  """List all registered GitHub repo assets."""
+  githubRepoAssets: [GitHubRepoAsset!]! @resolver
+
+  """Get a specific GitHub repo asset."""
+  githubRepoAsset(id: ID! @idOf(type: "GitHubRepoAsset")): GitHubRepoAsset @resolver
+
+  """List all registered GitHub team assets."""
+  githubTeamAssets: [GitHubTeamAsset!]! @resolver
+
+  """Search GitHub org members by username or email."""
+  searchProviderUsers(query: String!): [ProviderUser!]! @resolver
+}
+
+extend type Mutation @scope(to: ["github"]) {
+  """Register a GitHub repo asset. Requires TenantAsset(github) EDITOR or higher."""
+  registerGitHubRepo(input: RegisterGitHubRepoInput!): GitHubRepoAsset! @resolver
+
+  """Register a GitHub team asset. Requires TenantAsset(github) EDITOR or higher."""
+  registerGitHubTeam(input: RegisterGitHubTeamInput!): GitHubTeamAsset! @resolver
+
+  """Create a policy granting a group access to a GitHub repo."""
+  createGitHubRepoPolicy(input: CreateGitHubRepoPolicyInput!): GitHubRepoPolicy! @resolver
+
+  """Delete a GitHub repo policy."""
+  deleteGitHubRepoPolicy(input: DeleteGitHubRepoPolicyInput!): Boolean! @resolver
+
+  """Create a policy granting a group membership in a GitHub team."""
+  createGitHubTeamPolicy(input: CreateGitHubTeamPolicyInput!): GitHubTeamPolicy! @resolver
+
+  """Delete a GitHub team policy."""
+  deleteGitHubTeamPolicy(input: DeleteGitHubTeamPolicyInput!): Boolean! @resolver
+
+  """
+  Register a single GitHub identity mapping on behalf of a user.
+  verifiedAt is not set until confirmed by a reconcile.
+  Requires TenantAsset(github) EDITOR or higher.
+  """
+  setExternalIdentity(input: SetExternalIdentityInput!): ExternalIdentity! @resolver
+
+  """
+  Import all GitHub org members and match to ViaAccess users by email.
+  Idempotent — safe to re-run. Sets verifiedAt on created mappings.
+  Requires TenantAsset(github) EDITOR or higher.
+  """
+  importProviderIdentities: IdentityImportSummary! @resolver
+
+  """
+  Enqueue a dry-run preview for a GitHub asset.
+  Poll syncJob(id) for the plan result once SUCCEEDED.
+  Requires TenantAsset(github) EDITOR or higher.
+  """
+  previewAssetSync(assetId: ID!): SyncJob! @resolver
+
+  """
+  Seed Pulumi stack state from the live GitHub resource.
+  Must be run before the first reconciliation on a pre-existing asset.
+  Requires TenantAsset(github) EDITOR or higher.
+  """
+  importAsset(assetId: ID!): SyncJob! @resolver
+
+  """Enqueue a reconciliation for a GitHub asset."""
+  syncAsset(assetId: ID!): SyncJob! @resolver
+}

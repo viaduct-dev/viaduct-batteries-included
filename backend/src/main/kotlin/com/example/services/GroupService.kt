@@ -10,7 +10,8 @@ data class CheckboxGroupEntity(
     val id: String,
     val name: String,
     val description: String? = null,
-    val owner_id: String,
+    val created_by: String,
+    val status: String = "ACTIVE",
     val created_at: String,
     val updated_at: String
 )
@@ -27,7 +28,7 @@ data class GroupMemberEntity(
 data class CreateGroupInput(
     val name: String,
     val description: String? = null,
-    val owner_id: String
+    val created_by: String
 )
 
 @Serializable
@@ -75,9 +76,9 @@ open class GroupService(
         authenticatedClient: AuthenticatedSupabaseClient,
         name: String,
         description: String?,
-        ownerId: String
+        createdBy: String
     ): CheckboxGroupEntity {
-        return authenticatedClient.createGroup(name, description, ownerId)
+        return authenticatedClient.createGroup(name, description, createdBy)
     }
 
     /**

@@ -80,11 +80,12 @@ class AuthService(
     }
 
     /**
-     * Extract the schema ID based on whether the user is an admin
+     * Select the Viaduct schema ID. isAdmin gets the admin schema; everyone else gets
+     * the default schema (which includes all tenant scopes). Access to individual
+     * tenant types is enforced per-type by the checker executors, not by schema selection.
      */
-    fun getSchemaId(requestContext: GraphQLRequestContext): String {
-        return if (requestContext.isAdmin) "admin" else "default"
-    }
+    fun getSchemaId(requestContext: GraphQLRequestContext): String =
+        if (requestContext.isAdmin) "admin" else "default"
 
     /**
      * Sign in with email and password.

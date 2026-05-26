@@ -1,0 +1,89 @@
+"""
+A user seen in an external provider (GitHub or Asana), with their current
+reconciliation status against ViaAccess system users.
+Scoped to admin, github, and asana so it can appear as a field on asset types.
+"""
+type ProviderUserView @scope(to: ["admin", "github", "asana"]) {
+  provider: String!
+  externalUserId: String!
+  externalUsername: String!
+  """Email as reported by the provider, if available."""
+  email: String
+  """Set if this external identity is already linked to a ViaAccess user."""
+  linkedUserId: String
+  """Email of the linked ViaAccess user, for display."""
+  linkedUserEmail: String
+  """Whether the link has been verified by a successful reconciliation."""
+  verified: Boolean!
+}
+
+input ReconcileToExistingUserInput @scope(to: ["admin"]) {
+  provider: String!
+  externalUserId: String!
+  externalUsername: String!
+  """The ViaAccess user ID to link this external identity to."""
+  userId: String!
+}
+
+input ReconcileToNewUserInput @scope(to: ["admin"]) {
+  provider: String!
+  externalUserId: String!
+  externalUsername: String!
+  """Email address for the new ViaAccess account."""
+  email: String!
+}
+
+"""
+Cross-tenant policy view for platform admins.
+DTO projection type — no cross-scope type references.
+"""
+type AdminPolicyView @scope(to: ["admin"]) {
+  id: ID!
+  groupId: String!
+  groupName: String!
+  assetType: String!
+  assetExternalId: String!
+  assetName: String!
+  tenantName: String!
+  permission: String!
+  syncStatus: String!
+}
+
+"""
+Cross-tenant asset view for platform admins.
+DTO projection type — no cross-scope type references.
+"""
+type AdminAssetView @scope(to: ["admin"]) {
+  id: ID!
+  assetType: String!
+  externalId: String!
+  tenantName: String!
+  name: String!
+}
+
+extend type Query @scope(to: ["admin"]) {
+  """
+  Get all policies for a group across all tenants.
+  Aggregates github, asana, and any other tenant tables.
+  """
+  groupPolicies(groupId: String!): [AdminPolicyView!]! @resolver
+
+  """
+  List all registered assets across all tenants.
+  """
+  allAssets: [AdminAssetView!]! @resolver
+}
+
+extend type Mutation @scope(to: ["admin"]) {
+  """
+  Link a provider user to an existing ViaAccess account.
+  Idempotent — safe to call if a link already exists (updates it).
+  """
+  reconcileToExistingUser(input: ReconcileToExistingUserInput!): ProviderUserView! @resolver
+
+  """
+  Create a new ViaAccess account and link the provider user to it.
+  The new user receives an invitation email via Supabase Auth.
+  """
+  reconcileToNewUser(input: ReconcileToNewUserInput!): ProviderUserView! @resolver
+}

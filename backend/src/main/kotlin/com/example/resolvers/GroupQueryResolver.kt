@@ -20,10 +20,11 @@ class GroupQueryResolver(
         val groupEntity = groupService.getGroupById(ctx.authenticatedClient, groupId) ?: return null
 
         return Group.Builder(ctx)
-            .id(ctx.arguments.id)  // Reuse the GlobalID from arguments instead of regenerating
+            .id(ctx.arguments.id)
             .name(groupEntity.name)
             .description(groupEntity.description)
-            .ownerId(groupEntity.owner_id)
+            .createdBy(groupEntity.created_by)
+            .status(viaduct.api.grts.GroupStatus.valueOf(groupEntity.status))
             .createdAt(groupEntity.created_at)
             .updatedAt(groupEntity.updated_at)
             .build()

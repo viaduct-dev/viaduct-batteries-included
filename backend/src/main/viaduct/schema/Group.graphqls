@@ -1,144 +1,84 @@
 """
-A group that contains resources and members.
-Users must be members of the group to access resources within it.
-This is a core framework concept for organizing access control.
+A group that contains members and policies granting access to external services.
+Groups serve dual purpose: app-internal access control and external service access.
+Adding a user to a group grants them all the external service access that group's policies define.
 """
 type Group implements Node @scope(to: ["default"]) {
-  """
-  The unique identifier for the group.
-  """
   id: ID!
-
-  """
-  The name of the group.
-  """
   name: String!
-
-  """
-  Optional description of the group.
-  """
   description: String
-
-  """
-  The user who created and owns this group.
-  """
-  ownerId: String!
-
-  """
-  All members of this group.
-  """
+  """Audit metadata only — carries no permission weight."""
+  createdBy: String!
+  status: GroupStatus!
   members: [GroupMember!]! @resolver
-
-  """
-  When the group was created.
-  """
+  """Cross-tenant view of all external service access this group has."""
+  accessSummary: [PolicySummaryEntry!]! @resolver
   createdAt: String!
-
-  """
-  When the group was last updated.
-  """
   updatedAt: String!
 }
 
+enum GroupStatus @scope(to: ["default"]) {
+  ACTIVE
+  DELETING
+  ARCHIVED
+}
+
 """
-Represents a user's membership in a group.
+A unified cross-tenant summary of one policy entry for a group.
+Returned by Group.accessSummary — spans GitHub, Asana, and any other tenant.
 """
+type PolicySummaryEntry @scope(to: ["default"]) {
+  assetType: String!
+  assetName: String!
+  externalId: String!
+  permission: String!
+  syncStatus: PolicySyncStatus!
+}
+
+enum PolicySyncStatus @scope(to: ["default", "github", "asana", "admin"]) {
+  HEALTHY
+  PENDING
+  DEGRADED
+  FAILED
+}
+
 type GroupMember @scope(to: ["default"]) {
-  """
-  The unique identifier for this membership.
-  """
   id: ID!
-
-  """
-  The group this membership belongs to.
-  """
   groupId: String!
-
-  """
-  The user who is a member.
-  """
   userId: String!
-
-  """
-  When the user joined the group.
-  """
   joinedAt: String!
 }
 
-"""
-Input for creating a new group.
-"""
 input CreateGroupInput @scope(to: ["default"]) {
-  """
-  The name of the group.
-  """
   name: String!
-
-  """
-  Optional description of the group.
-  """
   description: String
 }
 
-"""
-Input for adding a member to a group.
-"""
 input AddGroupMemberInput @scope(to: ["default"]) {
-  """
-  The ID of the group.
-  """
   groupId: ID! @idOf(type: "Group")
-
-  """
-  The email or ID of the user to add.
-  """
   userId: String!
 }
 
-"""
-Input for removing a member from a group.
-"""
 input RemoveGroupMemberInput @scope(to: ["default"]) {
-  """
-  The ID of the group.
-  """
   groupId: ID! @idOf(type: "Group")
-
-  """
-  The user ID to remove.
-  """
   userId: String!
 }
 
 extend type Query @scope(to: ["default"]) {
-  """
-  Get all groups the current user is a member of.
-  """
+  """Get all groups the current user is a member of."""
   groups: [Group!]! @resolver
 
-  """
-  Get a specific group by ID.
-  Only accessible if the user is a member.
-  """
+  """Get a specific group by ID. Only accessible if the user is a member."""
   group(id: ID! @idOf(type: "Group")): Group @resolver
 }
 
 extend type Mutation @scope(to: ["default"]) {
-  """
-  Create a new group.
-  The creator automatically becomes a member and owner.
-  """
+  """Create a new group. The creator automatically becomes a member."""
   createGroup(input: CreateGroupInput!): Group! @resolver
 
-  """
-  Add a member to a group.
-  Only the group owner can add members.
-  """
+  """Add a member to a group. Requires TenantAsset(default) EDITOR or higher."""
   addGroupMember(input: AddGroupMemberInput!): GroupMember! @resolver
 
-  """
-  Remove a member from a group.
-  The owner or the member themselves can remove the membership.
-  """
+  """Remove a member from a group. The member themselves or an EDITOR+ can remove."""
   removeGroupMember(input: RemoveGroupMemberInput!): Boolean! @resolver
 }

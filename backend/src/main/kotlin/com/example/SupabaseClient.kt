@@ -104,7 +104,8 @@ data class RefreshTokenRequest(
 open class SupabaseService(
     val supabaseUrl: String,
     val supabaseKey: String,
-    private val httpClient: HttpClient
+    private val httpClient: HttpClient,
+    val serviceRoleKey: String = System.getenv("SUPABASE_SERVICE_ROLE_KEY") ?: supabaseKey
 ) {
     // Admin client for token verification only
     // Uses the shared HttpClient injected from Koin for connection pooling
@@ -355,12 +356,12 @@ class AuthenticatedSupabaseClient(
     suspend fun createGroup(
         name: String,
         description: String?,
-        ownerId: String
+        createdBy: String
     ): com.example.services.CheckboxGroupEntity {
         val input = com.example.services.CreateGroupInput(
             name = name,
             description = description,
-            owner_id = ownerId
+            created_by = createdBy
         )
         val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/groups") {
             header("Authorization", "Bearer $accessToken")
@@ -386,6 +387,18 @@ class AuthenticatedSupabaseClient(
         }
         val jsonString = response.bodyAsText()
         return json.decodeFromString(jsonString)
+    }
+
+    suspend fun getGroupMembersForGroups(groupIds: List<String>): List<com.example.services.GroupMemberEntity> {
+        if (groupIds.isEmpty()) return emptyList()
+        val inClause = groupIds.joinToString(",") { "\"$it\"" }
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/group_members") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("group_id", "in.($inClause)")
+            parameter("select", "*")
+        }
+        return json.decodeFromString(response.bodyAsText())
     }
 
     /**
@@ -419,5 +432,791 @@ class AuthenticatedSupabaseClient(
             parameter("user_id", "eq.$userId")
         }
         return true
+    }
+
+    // -------------------------------------------------------------------------
+    // ViaAccess: Assets
+    // -------------------------------------------------------------------------
+
+    suspend fun getAssets(tenantName: String? = null): List<com.example.services.AssetEntity> {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/assets") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("order", "created_at.asc")
+            if (tenantName != null) parameter("tenant_name", "eq.$tenantName")
+        }
+        return json.decodeFromString(response.bodyAsText())
+    }
+
+    suspend fun getAssetById(id: String): com.example.services.AssetEntity? {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/assets") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("id", "eq.$id")
+        }
+        return json.decodeFromString<List<com.example.services.AssetEntity>>(response.bodyAsText()).firstOrNull()
+    }
+
+    suspend fun createAsset(
+        assetType: String,
+        tenantName: String,
+        externalId: String,
+        name: String
+    ): com.example.services.AssetEntity {
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/assets") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody("""{"asset_type":"$assetType","tenant_name":"$tenantName","external_id":"$externalId","name":"$name"}""")
+        }
+        return json.decodeFromString<List<com.example.services.AssetEntity>>(response.bodyAsText()).first()
+    }
+
+    // -------------------------------------------------------------------------
+    // ViaAccess: TenantAssets
+    // -------------------------------------------------------------------------
+
+    suspend fun getTenantAssets(): List<com.example.services.TenantAssetEntity> {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/tenant_assets") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+        }
+        return json.decodeFromString(response.bodyAsText())
+    }
+
+    suspend fun getTenantAssetByName(tenantName: String): com.example.services.TenantAssetEntity? {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/tenant_assets") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("tenant_name", "eq.$tenantName")
+        }
+        return json.decodeFromString<List<com.example.services.TenantAssetEntity>>(response.bodyAsText()).firstOrNull()
+    }
+
+    suspend fun getTenantAssetById(id: String): com.example.services.TenantAssetEntity? {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/tenant_assets") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("id", "eq.$id")
+        }
+        return json.decodeFromString<List<com.example.services.TenantAssetEntity>>(response.bodyAsText()).firstOrNull()
+    }
+
+    suspend fun getTenantAssetPolicies(tenantAssetId: String): List<com.example.services.TenantAssetPolicyEntity> {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/tenant_asset_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("tenant_asset_id", "eq.$tenantAssetId")
+        }
+        return json.decodeFromString(response.bodyAsText())
+    }
+
+    suspend fun getTenantAssetPolicyById(id: String): com.example.services.TenantAssetPolicyEntity? {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/tenant_asset_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("id", "eq.$id")
+        }
+        return json.decodeFromString<List<com.example.services.TenantAssetPolicyEntity>>(response.bodyAsText()).firstOrNull()
+    }
+
+    suspend fun userHasTenantAccess(userId: String, tenantName: String): Boolean {
+        val tenantAsset = getTenantAssetByName(tenantName) ?: return false
+        val policies = getTenantAssetPolicies(tenantAsset.id)
+        if (policies.isEmpty()) return false
+        val groupIds = policies.map { it.group_id }
+        val members = getGroupMembersForGroups(groupIds)
+        return members.any { it.user_id == userId }
+    }
+
+
+    suspend fun getUserTenantNames(userId: String): Set<String> {
+        val nonDefaultTenants = getTenantAssets().filter { it.tenant_name != "default" }
+        if (nonDefaultTenants.isEmpty()) return emptySet()
+        val allPolicies = nonDefaultTenants.flatMap { getTenantAssetPolicies(it.id) }
+        if (allPolicies.isEmpty()) return emptySet()
+        val members = getGroupMembersForGroups(allPolicies.map { it.group_id }.distinct())
+        val userGroupIds = members.filter { it.user_id == userId }.map { it.group_id }.toSet()
+        val accessibleTenantAssetIds = allPolicies.filter { it.group_id in userGroupIds }.map { it.tenant_asset_id }.toSet()
+        return nonDefaultTenants.filter { it.id in accessibleTenantAssetIds }.map { it.tenant_name }.toSet()
+    }
+
+    suspend fun createTenantAssetPolicy(
+        tenantAssetId: String,
+        groupId: String,
+        permission: String
+    ): com.example.services.TenantAssetPolicyEntity {
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/tenant_asset_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody("""{"tenant_asset_id":"$tenantAssetId","group_id":"$groupId","permission":"$permission"}""")
+        }
+        return json.decodeFromString<List<com.example.services.TenantAssetPolicyEntity>>(response.bodyAsText()).first()
+    }
+
+    suspend fun deleteTenantAssetPolicy(id: String): Boolean {
+        httpClient.delete("$supabaseUrl/rest/v1/tenant_asset_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("id", "eq.$id")
+        }
+        return true
+    }
+
+    // -------------------------------------------------------------------------
+    // ViaAccess: GitHub assets and policies
+    // -------------------------------------------------------------------------
+
+    suspend fun getGitHubRepoAssets(): List<Pair<com.example.services.AssetEntity, com.example.services.GitHubRepoAssetEntity>> {
+        val assets = getAssets("github").filter { it.asset_type == "GITHUB_REPO" }
+        return assets.mapNotNull { asset ->
+            val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/github_repo_assets") {
+                header("Authorization", "Bearer $accessToken")
+                header("apikey", supabaseKey)
+                parameter("select", "*")
+                parameter("id", "eq.${asset.id}")
+            }
+            val detail = json.decodeFromString<List<com.example.services.GitHubRepoAssetEntity>>(response.bodyAsText()).firstOrNull()
+            detail?.let { asset to it }
+        }
+    }
+
+    suspend fun getGitHubRepoAssetById(id: String): Pair<com.example.services.AssetEntity, com.example.services.GitHubRepoAssetEntity>? {
+        val asset = getAssetById(id) ?: return null
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/github_repo_assets") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("id", "eq.$id")
+        }
+        val detail = json.decodeFromString<List<com.example.services.GitHubRepoAssetEntity>>(response.bodyAsText()).firstOrNull()
+            ?: return null
+        return asset to detail
+    }
+
+    suspend fun createGitHubRepoAsset(owner: String, repo: String, name: String): Pair<com.example.services.AssetEntity, com.example.services.GitHubRepoAssetEntity> {
+        val externalId = "$owner/$repo"
+        val asset = createAsset("GITHUB_REPO", "github", externalId, name)
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/github_repo_assets") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody("""{"id":"${asset.id}","owner":"$owner","repo":"$repo"}""")
+        }
+        val detail = json.decodeFromString<List<com.example.services.GitHubRepoAssetEntity>>(response.bodyAsText()).first()
+        return asset to detail
+    }
+
+    suspend fun getGitHubTeamAssets(): List<Pair<com.example.services.AssetEntity, com.example.services.GitHubTeamAssetEntity>> {
+        val assets = getAssets("github").filter { it.asset_type == "GITHUB_TEAM" }
+        return assets.mapNotNull { asset ->
+            val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/github_team_assets") {
+                header("Authorization", "Bearer $accessToken")
+                header("apikey", supabaseKey)
+                parameter("select", "*")
+                parameter("id", "eq.${asset.id}")
+            }
+            val detail = json.decodeFromString<List<com.example.services.GitHubTeamAssetEntity>>(response.bodyAsText()).firstOrNull()
+            detail?.let { asset to it }
+        }
+    }
+
+    suspend fun createGitHubTeamAsset(org: String, slug: String, name: String): Pair<com.example.services.AssetEntity, com.example.services.GitHubTeamAssetEntity> {
+        val externalId = "$org/$slug"
+        val asset = createAsset("GITHUB_TEAM", "github", externalId, name)
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/github_team_assets") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody("""{"id":"${asset.id}","org":"$org","slug":"$slug"}""")
+        }
+        val detail = json.decodeFromString<List<com.example.services.GitHubTeamAssetEntity>>(response.bodyAsText()).first()
+        return asset to detail
+    }
+
+    suspend fun getGitHubRepoPoliciesByAsset(assetId: String): List<com.example.services.GitHubRepoPolicyEntity> {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/github_repo_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("asset_id", "eq.$assetId")
+        }
+        return json.decodeFromString(response.bodyAsText())
+    }
+
+    suspend fun createGitHubRepoPolicy(assetId: String, groupId: String, permission: String): com.example.services.GitHubRepoPolicyEntity {
+        // Insert parent policies row first
+        val policyResponse: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody("""{"policy_type":"GITHUB_REPO","group_id":"$groupId"}""")
+        }
+        val policyId = json.decodeFromString<List<com.example.services.PolicyEntity>>(policyResponse.bodyAsText()).first().id
+
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/github_repo_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody("""{"id":"$policyId","asset_id":"$assetId","group_id":"$groupId","permission":"$permission"}""")
+        }
+        return json.decodeFromString<List<com.example.services.GitHubRepoPolicyEntity>>(response.bodyAsText()).first()
+    }
+
+    suspend fun deleteGitHubRepoPolicy(id: String): Boolean {
+        // Deleting the parent policies row cascades to github_repo_policies
+        httpClient.delete("$supabaseUrl/rest/v1/policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("id", "eq.$id")
+        }
+        return true
+    }
+
+    suspend fun getGitHubTeamPoliciesByAsset(assetId: String): List<com.example.services.GitHubTeamPolicyEntity> {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/github_team_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("asset_id", "eq.$assetId")
+        }
+        return json.decodeFromString(response.bodyAsText())
+    }
+
+    suspend fun createGitHubTeamPolicy(assetId: String, groupId: String, permission: String): com.example.services.GitHubTeamPolicyEntity {
+        val policyResponse: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody("""{"policy_type":"GITHUB_TEAM","group_id":"$groupId"}""")
+        }
+        val policyId = json.decodeFromString<List<com.example.services.PolicyEntity>>(policyResponse.bodyAsText()).first().id
+
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/github_team_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody("""{"id":"$policyId","asset_id":"$assetId","group_id":"$groupId","permission":"$permission"}""")
+        }
+        return json.decodeFromString<List<com.example.services.GitHubTeamPolicyEntity>>(response.bodyAsText()).first()
+    }
+
+    suspend fun deleteGitHubTeamPolicy(id: String): Boolean {
+        httpClient.delete("$supabaseUrl/rest/v1/policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("id", "eq.$id")
+        }
+        return true
+    }
+
+    // -------------------------------------------------------------------------
+    // ViaAccess: Asana assets and policies
+    // -------------------------------------------------------------------------
+
+    suspend fun getAsanaProjectAssets(): List<Pair<com.example.services.AssetEntity, com.example.services.AsanaProjectAssetEntity>> {
+        val assets = getAssets("asana").filter { it.asset_type == "ASANA_PROJECT" }
+        return assets.mapNotNull { asset ->
+            val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/asana_project_assets") {
+                header("Authorization", "Bearer $accessToken")
+                header("apikey", supabaseKey)
+                parameter("select", "*")
+                parameter("id", "eq.${asset.id}")
+            }
+            val detail = json.decodeFromString<List<com.example.services.AsanaProjectAssetEntity>>(response.bodyAsText()).firstOrNull()
+            detail?.let { asset to it }
+        }
+    }
+
+    suspend fun getAsanaProjectAssetById(id: String): Pair<com.example.services.AssetEntity, com.example.services.AsanaProjectAssetEntity>? {
+        val asset = getAssetById(id) ?: return null
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/asana_project_assets") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("id", "eq.$id")
+        }
+        val detail = json.decodeFromString<List<com.example.services.AsanaProjectAssetEntity>>(response.bodyAsText()).firstOrNull()
+            ?: return null
+        return asset to detail
+    }
+
+    suspend fun createAsanaProjectAsset(gid: String, name: String): Pair<com.example.services.AssetEntity, com.example.services.AsanaProjectAssetEntity> {
+        val asset = createAsset("ASANA_PROJECT", "asana", gid, name)
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/asana_project_assets") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody("""{"id":"${asset.id}","gid":"$gid"}""")
+        }
+        val detail = json.decodeFromString<List<com.example.services.AsanaProjectAssetEntity>>(response.bodyAsText()).first()
+        return asset to detail
+    }
+
+    suspend fun getAsanaPortfolioAssets(): List<Pair<com.example.services.AssetEntity, com.example.services.AsanaPortfolioAssetEntity>> {
+        val assets = getAssets("asana").filter { it.asset_type == "ASANA_PORTFOLIO" }
+        return assets.mapNotNull { asset ->
+            val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/asana_portfolio_assets") {
+                header("Authorization", "Bearer $accessToken")
+                header("apikey", supabaseKey)
+                parameter("select", "*")
+                parameter("id", "eq.${asset.id}")
+            }
+            val detail = json.decodeFromString<List<com.example.services.AsanaPortfolioAssetEntity>>(response.bodyAsText()).firstOrNull()
+            detail?.let { asset to it }
+        }
+    }
+
+    suspend fun createAsanaPortfolioAsset(gid: String, name: String): Pair<com.example.services.AssetEntity, com.example.services.AsanaPortfolioAssetEntity> {
+        val asset = createAsset("ASANA_PORTFOLIO", "asana", gid, name)
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/asana_portfolio_assets") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody("""{"id":"${asset.id}","gid":"$gid"}""")
+        }
+        val detail = json.decodeFromString<List<com.example.services.AsanaPortfolioAssetEntity>>(response.bodyAsText()).first()
+        return asset to detail
+    }
+
+    suspend fun getAsanaProjectPoliciesByAsset(assetId: String): List<com.example.services.AsanaProjectPolicyEntity> {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/asana_project_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("asset_id", "eq.$assetId")
+        }
+        return json.decodeFromString(response.bodyAsText())
+    }
+
+    suspend fun createAsanaProjectPolicy(assetId: String, groupId: String, permission: String): com.example.services.AsanaProjectPolicyEntity {
+        val policyResponse: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody("""{"policy_type":"ASANA_PROJECT","group_id":"$groupId"}""")
+        }
+        val policyId = json.decodeFromString<List<com.example.services.PolicyEntity>>(policyResponse.bodyAsText()).first().id
+
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/asana_project_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody("""{"id":"$policyId","asset_id":"$assetId","group_id":"$groupId","permission":"$permission"}""")
+        }
+        return json.decodeFromString<List<com.example.services.AsanaProjectPolicyEntity>>(response.bodyAsText()).first()
+    }
+
+    suspend fun deleteAsanaProjectPolicy(id: String): Boolean {
+        httpClient.delete("$supabaseUrl/rest/v1/policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("id", "eq.$id")
+        }
+        return true
+    }
+
+    suspend fun getAsanaPortfolioPoliciesByAsset(assetId: String): List<com.example.services.AsanaPortfolioPolicyEntity> {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/asana_portfolio_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("asset_id", "eq.$assetId")
+        }
+        return json.decodeFromString(response.bodyAsText())
+    }
+
+    suspend fun createAsanaPortfolioPolicy(assetId: String, groupId: String, permission: String): com.example.services.AsanaPortfolioPolicyEntity {
+        val policyResponse: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody("""{"policy_type":"ASANA_PORTFOLIO","group_id":"$groupId"}""")
+        }
+        val policyId = json.decodeFromString<List<com.example.services.PolicyEntity>>(policyResponse.bodyAsText()).first().id
+
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/asana_portfolio_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody("""{"id":"$policyId","asset_id":"$assetId","group_id":"$groupId","permission":"$permission"}""")
+        }
+        return json.decodeFromString<List<com.example.services.AsanaPortfolioPolicyEntity>>(response.bodyAsText()).first()
+    }
+
+    suspend fun deleteAsanaPortfolioPolicy(id: String): Boolean {
+        httpClient.delete("$supabaseUrl/rest/v1/policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("id", "eq.$id")
+        }
+        return true
+    }
+
+    // -------------------------------------------------------------------------
+    // ViaAccess: Sync jobs
+    // -------------------------------------------------------------------------
+
+    suspend fun getSyncJobById(id: String): com.example.services.SyncJobEntity? {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/sync_jobs") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("id", "eq.$id")
+        }
+        return json.decodeFromString<List<com.example.services.SyncJobEntity>>(response.bodyAsText()).firstOrNull()
+    }
+
+    suspend fun createSyncJob(
+        assetId: String,
+        assetType: String,
+        tenantName: String,
+        action: String
+    ): com.example.services.SyncJobEntity {
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/sync_jobs") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            contentType(ContentType.Application.Json)
+            setBody("""{"asset_id":"$assetId","asset_type":"$assetType","tenant_name":"$tenantName","action":"$action"}""")
+        }
+        return json.decodeFromString<List<com.example.services.SyncJobEntity>>(response.bodyAsText()).first()
+    }
+
+    suspend fun updateSyncJob(
+        id: String,
+        status: String,
+        lastError: String? = null,
+        planSummary: String? = null
+    ): com.example.services.SyncJobEntity {
+        val completedAt = if (status in listOf("SUCCEEDED", "FAILED", "EXHAUSTED", "ABANDONED")) "\"now()\"" else "null"
+        val errorJson = if (lastError != null) "\"${lastError.replace("\"", "\\\"")}\"" else "null"
+        val summaryJson = if (planSummary != null) "\"${planSummary.replace("\"", "\\\"")}\"" else "null"
+        val body = """{"status":"$status","last_error":$errorJson,"plan_summary":$summaryJson,"completed_at":$completedAt}"""
+        val response: HttpResponse = httpClient.patch("$supabaseUrl/rest/v1/sync_jobs") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            parameter("id", "eq.$id")
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }
+        return json.decodeFromString<List<com.example.services.SyncJobEntity>>(response.bodyAsText()).first()
+    }
+
+    // -------------------------------------------------------------------------
+    // ViaAccess: External identities
+    // -------------------------------------------------------------------------
+
+    suspend fun getExternalIdentitiesForUser(userId: String): List<com.example.services.ExternalIdentityEntity> {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/external_identities") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("user_id", "eq.$userId")
+        }
+        return json.decodeFromString(response.bodyAsText())
+    }
+
+    suspend fun getExternalIdentitiesByProvider(provider: String): List<com.example.services.ExternalIdentityEntity> {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/external_identities") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("provider", "eq.$provider")
+        }
+        return json.decodeFromString(response.bodyAsText())
+    }
+
+    suspend fun getExternalIdentitiesForUsersAndProvider(
+        userIds: List<String>,
+        provider: String
+    ): List<com.example.services.ExternalIdentityEntity> {
+        if (userIds.isEmpty()) return emptyList()
+        val inClause = userIds.joinToString(",") { "\"$it\"" }
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/external_identities") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("provider", "eq.$provider")
+            parameter("user_id", "in.($inClause)")
+        }
+        return json.decodeFromString(response.bodyAsText())
+    }
+
+    suspend fun upsertExternalIdentity(
+        userId: String,
+        provider: String,
+        externalUserId: String,
+        externalUsername: String,
+        verified: Boolean = false
+    ): com.example.services.ExternalIdentityEntity {
+        val verifiedAt = if (verified) "\"now()\"" else "null"
+        val body = """{"user_id":"$userId","provider":"$provider","external_user_id":"$externalUserId","external_username":"$externalUsername","verified_at":$verifiedAt}"""
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/external_identities") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation,resolution=merge-duplicates")
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }
+        return json.decodeFromString<List<com.example.services.ExternalIdentityEntity>>(response.bodyAsText()).first()
+    }
+
+    // -------------------------------------------------------------------------
+    // ViaAccess: Cross-tenant policy summary (for Group.accessSummary)
+    // -------------------------------------------------------------------------
+
+    suspend fun getPolicySummaryForGroup(groupId: String): List<com.example.services.PolicySummaryRow> {
+        val rows = mutableListOf<com.example.services.PolicySummaryRow>()
+
+        // GitHub repo policies
+        val repoResponse: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/github_repo_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "asset_id,permission,sync_status")
+            parameter("group_id", "eq.$groupId")
+        }
+        for (p in json.decodeFromString<List<com.example.services.GitHubRepoPolicyEntity>>(repoResponse.bodyAsText())) {
+            val asset = getAssetById(p.asset_id) ?: continue
+            rows.add(com.example.services.PolicySummaryRow(
+                asset_type = "GITHUB_REPO", asset_name = asset.name,
+                external_id = asset.external_id, permission = p.permission, sync_status = p.sync_status
+            ))
+        }
+
+        // GitHub team policies
+        val teamResponse: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/github_team_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "asset_id,permission,sync_status")
+            parameter("group_id", "eq.$groupId")
+        }
+        for (p in json.decodeFromString<List<com.example.services.GitHubTeamPolicyEntity>>(teamResponse.bodyAsText())) {
+            val asset = getAssetById(p.asset_id) ?: continue
+            rows.add(com.example.services.PolicySummaryRow(
+                asset_type = "GITHUB_TEAM", asset_name = asset.name,
+                external_id = asset.external_id, permission = p.permission, sync_status = p.sync_status
+            ))
+        }
+
+        // Asana project policies
+        val asanaProjectResponse: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/asana_project_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "asset_id,permission,sync_status")
+            parameter("group_id", "eq.$groupId")
+        }
+        for (p in json.decodeFromString<List<com.example.services.AsanaProjectPolicyEntity>>(asanaProjectResponse.bodyAsText())) {
+            val asset = getAssetById(p.asset_id) ?: continue
+            rows.add(com.example.services.PolicySummaryRow(
+                asset_type = "ASANA_PROJECT", asset_name = asset.name,
+                external_id = asset.external_id, permission = p.permission, sync_status = p.sync_status
+            ))
+        }
+
+        // Asana portfolio policies
+        val asanaPortfolioResponse: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/asana_portfolio_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "asset_id,permission,sync_status")
+            parameter("group_id", "eq.$groupId")
+        }
+        for (p in json.decodeFromString<List<com.example.services.AsanaPortfolioPolicyEntity>>(asanaPortfolioResponse.bodyAsText())) {
+            val asset = getAssetById(p.asset_id) ?: continue
+            rows.add(com.example.services.PolicySummaryRow(
+                asset_type = "ASANA_PORTFOLIO", asset_name = asset.name,
+                external_id = asset.external_id, permission = p.permission, sync_status = p.sync_status
+            ))
+        }
+
+        return rows
+    }
+
+    // -------------------------------------------------------------------------
+    // Admin: provider user roster + invite-and-link
+    // -------------------------------------------------------------------------
+
+    /**
+     * List all known external identities for a given provider, joined to system user email where available.
+     * Returns all rows from external_identities — both linked (have a user_id) and unlinked
+     * entries created by importProviderIdentities for unmatched users.
+     *
+     * Note: unlinked entries have external_user_id set but user_id points to a sentinel or is
+     * managed externally; the resolver filters/enriches via getAllUsers.
+     */
+    suspend fun getExternalIdentitiesByProviderWithUsers(provider: String): List<com.example.services.ExternalIdentityEntity> {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/external_identities") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("provider", "eq.$provider")
+        }
+        return json.decodeFromString(response.bodyAsText())
+    }
+
+    // -------------------------------------------------------------------------
+    // ViaAccess: Tenant permission check and affected-asset lookup
+    // -------------------------------------------------------------------------
+
+    /**
+     * Checks whether the given user has at least the required permission on the named tenant.
+     * Calls the `has_tenant_permission` Postgres RPC function.
+     */
+    suspend fun userHasTenantPermission(
+        userId: String,
+        tenantName: String,
+        required: com.example.services.TenantPermission
+    ): Boolean {
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/rpc/has_tenant_permission") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            contentType(ContentType.Application.Json)
+            setBody("""{"tenant":"$tenantName","required_permission":"${required.name}"}""")
+        }
+        return json.decodeFromString<Boolean>(response.bodyAsText())
+    }
+
+    /**
+     * Returns all assets that have a policy referencing the given group.
+     * Queries github_repo_policies, github_team_policies, asana_project_policies,
+     * and asana_portfolio_policies for the group, then resolves each asset.
+     */
+    suspend fun getAssetsAffectedByGroup(groupId: String): List<com.example.services.AffectedAsset> {
+        val affected = mutableListOf<com.example.services.AffectedAsset>()
+
+        // GitHub repo policies
+        val repoResponse: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/github_repo_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "asset_id")
+            parameter("group_id", "eq.$groupId")
+        }
+        for (p in json.decodeFromString<List<com.example.services.GitHubRepoPolicyEntity>>(repoResponse.bodyAsText())) {
+            val asset = getAssetById(p.asset_id) ?: continue
+            affected.add(com.example.services.AffectedAsset(assetId = asset.id, assetType = asset.asset_type, tenantName = asset.tenant_name))
+        }
+
+        // GitHub team policies
+        val teamResponse: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/github_team_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "asset_id")
+            parameter("group_id", "eq.$groupId")
+        }
+        for (p in json.decodeFromString<List<com.example.services.GitHubTeamPolicyEntity>>(teamResponse.bodyAsText())) {
+            val asset = getAssetById(p.asset_id) ?: continue
+            affected.add(com.example.services.AffectedAsset(assetId = asset.id, assetType = asset.asset_type, tenantName = asset.tenant_name))
+        }
+
+        // Asana project policies
+        val asanaProjectResponse: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/asana_project_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "asset_id")
+            parameter("group_id", "eq.$groupId")
+        }
+        for (p in json.decodeFromString<List<com.example.services.AsanaProjectPolicyEntity>>(asanaProjectResponse.bodyAsText())) {
+            val asset = getAssetById(p.asset_id) ?: continue
+            affected.add(com.example.services.AffectedAsset(assetId = asset.id, assetType = asset.asset_type, tenantName = asset.tenant_name))
+        }
+
+        // Asana portfolio policies
+        val asanaPortfolioResponse: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/asana_portfolio_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "asset_id")
+            parameter("group_id", "eq.$groupId")
+        }
+        for (p in json.decodeFromString<List<com.example.services.AsanaPortfolioPolicyEntity>>(asanaPortfolioResponse.bodyAsText())) {
+            val asset = getAssetById(p.asset_id) ?: continue
+            affected.add(com.example.services.AffectedAsset(assetId = asset.id, assetType = asset.asset_type, tenantName = asset.tenant_name))
+        }
+
+        return affected
+    }
+
+    // -------------------------------------------------------------------------
+    // ViaAccess: Single-policy lookups (used before deletion for reconcile)
+    // -------------------------------------------------------------------------
+
+    suspend fun getGitHubRepoPolicyById(id: String): com.example.services.GitHubRepoPolicyEntity? {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/github_repo_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("id", "eq.$id")
+        }
+        return json.decodeFromString<List<com.example.services.GitHubRepoPolicyEntity>>(response.bodyAsText()).firstOrNull()
+    }
+
+    suspend fun getGitHubTeamPolicyById(id: String): com.example.services.GitHubTeamPolicyEntity? {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/github_team_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("id", "eq.$id")
+        }
+        return json.decodeFromString<List<com.example.services.GitHubTeamPolicyEntity>>(response.bodyAsText()).firstOrNull()
+    }
+
+    suspend fun getAsanaProjectPolicyById(id: String): com.example.services.AsanaProjectPolicyEntity? {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/asana_project_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("id", "eq.$id")
+        }
+        return json.decodeFromString<List<com.example.services.AsanaProjectPolicyEntity>>(response.bodyAsText()).firstOrNull()
+    }
+
+    suspend fun getAsanaPortfolioPolicyById(id: String): com.example.services.AsanaPortfolioPolicyEntity? {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/asana_portfolio_policies") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("id", "eq.$id")
+        }
+        return json.decodeFromString<List<com.example.services.AsanaPortfolioPolicyEntity>>(response.bodyAsText()).firstOrNull()
+    }
+
+    /**
+     * Invite a new user by email via Supabase Admin API (service role required).
+     * Creates a Supabase Auth account and sends an invite email.
+     * Returns the new user's ID.
+     */
+    suspend fun inviteUserByEmail(email: String, serviceRoleKey: String): String {
+        val response: HttpResponse = httpClient.post("$supabaseUrl/auth/v1/admin/users") {
+            header("Authorization", "Bearer $serviceRoleKey")
+            header("apikey", serviceRoleKey)
+            contentType(ContentType.Application.Json)
+            setBody("""{"email":"$email","email_confirm":false,"send_invitation":true}""")
+        }
+        val body = response.bodyAsText()
+        return json.decodeFromString<kotlinx.serialization.json.JsonObject>(body)["id"]
+            ?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
+            ?: error("Failed to create user: $body")
     }
 }

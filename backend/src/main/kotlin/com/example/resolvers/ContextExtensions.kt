@@ -3,6 +3,8 @@ package com.example.resolvers
 import com.example.AuthenticatedSupabaseClient
 import com.example.GraphQLRequestContext
 import com.example.config.RequestContext
+import com.example.services.TenantPermission
+import com.example.services.ViaAccessAuthorizationService
 import viaduct.api.context.ExecutionContext
 
 /**
@@ -40,3 +42,13 @@ val ExecutionContext.userId: String
  */
 val ExecutionContext.isAdmin: Boolean
     get() = requestContextInternal.graphQLContext.isAdmin
+
+/**
+ * Convenience extension to enforce a tenant permission check within a resolver.
+ * Throws IllegalArgumentException if the current user does not have the required permission.
+ */
+suspend fun ExecutionContext.requireTenantPermission(
+    authService: ViaAccessAuthorizationService,
+    tenantName: String,
+    required: TenantPermission,
+) = authService.requireTenantPermission(authenticatedClient, userId, tenantName, required)

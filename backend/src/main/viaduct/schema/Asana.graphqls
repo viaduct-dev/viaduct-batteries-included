@@ -1,0 +1,152 @@
+"""An Asana project managed by ViaAccess."""
+type AsanaProjectAsset implements Node @scope(to: ["asana"]) {
+  id: ID!
+  name: String!
+  gid: String!
+  policies: [AsanaProjectPolicy!]! @resolver
+  """Users with access to this project (via group policies), with reconciliation status."""
+  providerUsers: [ProviderUserView!]! @resolver
+  createdAt: String!
+}
+
+"""An Asana portfolio managed by ViaAccess."""
+type AsanaPortfolioAsset implements Node @scope(to: ["asana"]) {
+  id: ID!
+  name: String!
+  gid: String!
+  policies: [AsanaPortfolioPolicy!]! @resolver
+  """Users with access to this portfolio (via group policies), with reconciliation status."""
+  providerUsers: [ProviderUserView!]! @resolver
+  createdAt: String!
+}
+
+"""Grants a ViaAccess group a permission level on an Asana project."""
+type AsanaProjectPolicy implements Node @scope(to: ["asana"]) {
+  id: ID!
+  groupId: String!
+  assetId: String!
+  permission: AsanaPermission!
+  syncStatus: PolicySyncStatus!
+}
+
+"""Grants a ViaAccess group a permission level on an Asana portfolio."""
+type AsanaPortfolioPolicy implements Node @scope(to: ["asana"]) {
+  id: ID!
+  groupId: String!
+  assetId: String!
+  permission: AsanaPermission!
+  syncStatus: PolicySyncStatus!
+}
+
+enum AsanaPermission @scope(to: ["asana"]) {
+  COMMENTER
+  EDITOR
+  MANAGER
+}
+
+"""A user found in the Asana workspace, with optional ViaAccess match."""
+type AsanaProviderUser @scope(to: ["asana"]) {
+  externalUserId: String!
+  externalUsername: String!
+  email: String
+  matchedUserId: String
+}
+
+type AsanaIdentityImportSummary @scope(to: ["asana"]) {
+  imported: Int!
+  alreadyMapped: Int!
+  unmatched: Int!
+  unmatchedUsernames: [String!]!
+}
+
+input RegisterAsanaProjectInput @scope(to: ["asana"]) {
+  gid: String!
+  name: String!
+}
+
+input RegisterAsanaPortfolioInput @scope(to: ["asana"]) {
+  gid: String!
+  name: String!
+}
+
+input CreateAsanaProjectPolicyInput @scope(to: ["asana"]) {
+  assetId: ID! @idOf(type: "AsanaProjectAsset")
+  groupId: ID! @idOf(type: "Group")
+  permission: AsanaPermission!
+}
+
+input DeleteAsanaProjectPolicyInput @scope(to: ["asana"]) {
+  policyId: ID! @idOf(type: "AsanaProjectPolicy")
+}
+
+input CreateAsanaPortfolioPolicyInput @scope(to: ["asana"]) {
+  assetId: ID! @idOf(type: "AsanaPortfolioAsset")
+  groupId: ID! @idOf(type: "Group")
+  permission: AsanaPermission!
+}
+
+input DeleteAsanaPortfolioPolicyInput @scope(to: ["asana"]) {
+  policyId: ID! @idOf(type: "AsanaPortfolioPolicy")
+}
+
+input SetAsanaIdentityInput @scope(to: ["asana"]) {
+  userId: String!
+  externalUserId: String!
+  externalUsername: String!
+}
+
+extend type Query @scope(to: ["asana"]) {
+  """List all registered Asana project assets."""
+  asanaProjectAssets: [AsanaProjectAsset!]! @resolver
+
+  """Get a specific Asana project asset."""
+  asanaProjectAsset(id: ID! @idOf(type: "AsanaProjectAsset")): AsanaProjectAsset @resolver
+
+  """List all registered Asana portfolio assets."""
+  asanaPortfolioAssets: [AsanaPortfolioAsset!]! @resolver
+
+  """Search Asana workspace members by name or email."""
+  searchAsanaUsers(query: String!): [AsanaProviderUser!]! @resolver
+}
+
+extend type Mutation @scope(to: ["asana"]) {
+  """Register an Asana project asset. Requires TenantAsset(asana) EDITOR or higher."""
+  registerAsanaProject(input: RegisterAsanaProjectInput!): AsanaProjectAsset! @resolver
+
+  """Register an Asana portfolio asset. Requires TenantAsset(asana) EDITOR or higher."""
+  registerAsanaPortfolio(input: RegisterAsanaPortfolioInput!): AsanaPortfolioAsset! @resolver
+
+  """Create a policy granting a group access to an Asana project."""
+  createAsanaProjectPolicy(input: CreateAsanaProjectPolicyInput!): AsanaProjectPolicy! @resolver
+
+  """Delete an Asana project policy."""
+  deleteAsanaProjectPolicy(input: DeleteAsanaProjectPolicyInput!): Boolean! @resolver
+
+  """Create a policy granting a group access to an Asana portfolio."""
+  createAsanaPortfolioPolicy(input: CreateAsanaPortfolioPolicyInput!): AsanaPortfolioPolicy! @resolver
+
+  """Delete an Asana portfolio policy."""
+  deleteAsanaPortfolioPolicy(input: DeleteAsanaPortfolioPolicyInput!): Boolean! @resolver
+
+  """
+  Register a single Asana identity mapping on behalf of a user.
+  Requires TenantAsset(asana) EDITOR or higher.
+  """
+  setAsanaIdentity(input: SetAsanaIdentityInput!): ExternalIdentity! @resolver
+
+  """
+  Import all Asana workspace members and match to ViaAccess users by email.
+  Idempotent. Sets verifiedAt on created mappings.
+  Requires TenantAsset(asana) EDITOR or higher.
+  """
+  importAsanaIdentities: AsanaIdentityImportSummary! @resolver
+
+  """Enqueue a dry-run preview for an Asana asset."""
+  previewAsanaAssetSync(assetId: ID!): SyncJob! @resolver
+
+  """Seed Pulumi stack state from the live Asana resource."""
+  importAsanaAsset(assetId: ID!): SyncJob! @resolver
+
+  """Enqueue a reconciliation for an Asana asset."""
+  syncAsanaAsset(assetId: ID!): SyncJob! @resolver
+}

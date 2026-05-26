@@ -7,6 +7,7 @@ import com.example.models.GraphQLRequest
 import com.example.plugins.GraphQLAuthentication
 import com.example.plugins.cachedRequestBody
 import com.example.plugins.isPublicOperation
+import com.example.plugins.isIntrospection
 import com.example.plugins.requestContext
 import com.example.services.AuthService
 import io.ktor.client.*
@@ -209,51 +210,107 @@ fun Application.configureApplication(
         this.httpClient = httpClient ?: error("HttpClient not found in Koin")
     }
 
-    routing {
-        post("/graphql") {
-            // Get request body - either from cache (if auth plugin already read it) or fresh
-            val requestBody = call.cachedRequestBody ?: call.receiveText()
-            val request = objectMapper.readValue(requestBody, GraphQLRequest::class.java)
+    // Each (schemaName, scopeSet) pair corresponds to one GraphQL endpoint.
+    val TENANT_SCHEMAS = listOf(
+        Triple("default", "/graphql",        SchemaId.Scoped("default", setOf("default", "public"))),
+        Triple("github",  "/graphql/github",  SchemaId.Scoped("github",  setOf("default", "github", "public"))),
+        Triple("asana",   "/graphql/asana",   SchemaId.Scoped("asana",   setOf("default", "asana",  "public"))),
+        Triple("admin",   "/graphql/admin",   SchemaId.Scoped("admin",   setOf("default", "github", "asana", "admin", "public")))
+    )
 
-            // Check if this is a public operation (no auth required)
-            val schemaId: SchemaId
-            val requestContext: Any?
+    suspend fun executeGraphQL(call: io.ktor.server.application.ApplicationCall, fixedSchemaId: SchemaId?) {
+        val requestBody = call.cachedRequestBody ?: call.receiveText()
+        val request = objectMapper.readValue(requestBody, GraphQLRequest::class.java)
 
-            if (call.isPublicOperation) {
-                // Public operations use the "public" schema and no request context
+        val schemaId: SchemaId
+        val requestContext: Any?
+
+        when {
+            call.isIntrospection -> {
+                schemaId = fixedSchemaId ?: SchemaId.Scoped("default", setOf("default", "public"))
+                requestContext = null
+            }
+            call.isPublicOperation -> {
                 schemaId = SchemaId.Scoped("public", setOf("public"))
                 requestContext = null
-            } else {
-                // Get RequestContext - authentication is already handled by the plugin
+            }
+            else -> {
                 val requestContextWrapper = call.requestContext
-
-                // Use AuthService to determine schema ID
-                val schemaIdStr = authService.getSchemaId(requestContextWrapper.graphQLContext)
-                schemaId = when (schemaIdStr) {
-                    "admin" -> SchemaId.Scoped("admin", setOf("default", "admin", "public"))
-                    else -> SchemaId.Scoped("default", setOf("default", "public"))
+                schemaId = fixedSchemaId ?: when (authService.getSchemaId(requestContextWrapper.graphQLContext)) {
+                    "admin" -> SchemaId.Scoped("admin", setOf("default", "github", "asana", "admin", "public"))
+                    else    -> SchemaId.Scoped("default", setOf("default", "public"))
                 }
                 requestContext = requestContextWrapper
             }
+        }
 
-            // Build Viaduct ExecutionInput
-            val executionInput = ViaductExecutionInput.create(
-                operationText = request.query,
-                variables = request.variables,
-                requestContext = requestContext
-            )
+        val executionInput = ViaductExecutionInput.create(
+            operationText = request.query,
+            variables = request.variables,
+            requestContext = requestContext
+        )
+        val result = viaduct.execute(executionInput, schemaId)
+        call.respond(HttpStatusCode.OK, result.toSpecification())
+    }
 
-            // Execute GraphQL query
-            val result = viaduct.execute(executionInput, schemaId)
+    routing {
+        // Default schema endpoint — groups, members, TenantAsset governance
+        post("/graphql") { executeGraphQL(call, null) }
 
-            // Ktor's ContentNegotiation automatically serializes the response to JSON
-            call.respond(HttpStatusCode.OK, result.toSpecification())
+        // Per-tenant endpoints — each serves its own schema subset
+        post("/graphql/github") {
+            executeGraphQL(call, SchemaId.Scoped("github", setOf("default", "github", "public")))
+        }
+        post("/graphql/asana") {
+            executeGraphQL(call, SchemaId.Scoped("asana", setOf("default", "asana", "public")))
+        }
+        post("/graphql/admin") {
+            executeGraphQL(call, SchemaId.Scoped("admin", setOf("default", "github", "asana", "admin", "public")))
+        }
+
+        // Returns the schemas the calling user has access to, for the GraphiQL dropdown.
+        // Always includes "default". Adds tenant schemas based on TenantAssetPolicy grants.
+        // Adds "admin" if the user has isAdmin=true.
+        get("/api/schemas") {
+            val authHeader = call.request.headers["Authorization"]
+            val accessToken = authHeader?.removePrefix("Bearer ")?.trim()
+            if (accessToken == null) {
+                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authorization header required"))
+                return@get
+            }
+            try {
+                val graphQLContext = authService.createRequestContext(accessToken)
+                val client = supabaseService.createAuthenticatedClient(accessToken, httpClient ?: error("no http client"))
+                val userTenants = client.getUserTenantNames(graphQLContext.userId)
+                val schemas = buildList {
+                    add(mapOf("name" to "default", "url" to "/graphql",        "label" to "Default"))
+                    if ("github" in userTenants)  add(mapOf("name" to "github", "url" to "/graphql/github", "label" to "GitHub"))
+                    if ("asana"  in userTenants)  add(mapOf("name" to "asana",  "url" to "/graphql/asana",  "label" to "Asana"))
+                    if (graphQLContext.isAdmin)    add(mapOf("name" to "admin",  "url" to "/graphql/admin",  "label" to "Admin"))
+                }
+                call.respond(HttpStatusCode.OK, schemas)
+            } catch (e: Exception) {
+                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid token"))
+            }
+        }
+
+        get("/login") {
+            val html = this::class.java.classLoader.getResource("login.html")?.readText()
+                ?: error("login.html not found in resources")
+            call.respondText(html, ContentType.Text.Html)
         }
 
         get("/graphiql") {
             val html = this::class.java.classLoader.getResource("graphiql.html")?.readText()
                 ?: error("graphiql.html not found in resources")
             call.respondText(html, ContentType.Text.Html)
+        }
+
+        // Stub for future Okta SAML callback — Supabase will redirect here after SSO handshake.
+        // When Okta is configured, implement: exchange the Supabase SSO code for a session,
+        // store the token, and redirect to /graphiql.
+        get("/auth/callback") {
+            call.respondText("SSO callback not yet configured.", status = HttpStatusCode.NotImplemented)
         }
 
         get("/health") {

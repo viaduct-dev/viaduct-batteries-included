@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>ViaAccess — Sign In</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #1a1a2e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  color: #e2e8f0;
+}
+.card {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 10px;
+  padding: 40px;
+  width: 360px;
+}
+.logo {
+  font-size: 22px;
+  font-weight: 700;
+  color: #63b3ed;
+  margin-bottom: 6px;
+  letter-spacing: -0.5px;
+}
+.subtitle {
+  font-size: 13px;
+  color: #718096;
+  margin-bottom: 32px;
+}
+label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #a0aec0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+input {
+  display: block;
+  width: 100%;
+  background: #0f3460;
+  border: 1px solid #2d3748;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #e2e8f0;
+  margin-bottom: 18px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus { border-color: #4299e1; }
+.btn {
+  display: block;
+  width: 100%;
+  padding: 11px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-primary { background: #4299e1; color: white; margin-bottom: 12px; }
+.btn-primary:hover { background: #3182ce; }
+.btn-primary:disabled { background: #2b4c7e; color: #718096; cursor: not-allowed; }
+.btn-sso {
+  background: #2d3748;
+  color: #718096;
+  border: 1px solid #4a5568;
+  cursor: not-allowed;
+  position: relative;
+}
+.btn-sso .badge {
+  position: absolute;
+  top: -8px;
+  right: 10px;
+  background: #744210;
+  color: #fbd38d;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0;
+  color: #4a5568;
+  font-size: 12px;
+}
+.divider::before, .divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #2d3748;
+}
+#error {
+  background: #742a2a;
+  border: 1px solid #9b2c2c;
+  color: #fed7d7;
+  font-size: 13px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  display: none;
+}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">ViaAccess</div>
+  <div class="subtitle">Access management for external services</div>
+
+  <div id="error"></div>
+
+  <form id="login-form" onsubmit="signIn(event)">
+    <label for="email">Email</label>
+    <input type="email" id="email" placeholder="you@example.com" autocomplete="email" required />
+
+    <label for="password">Password</label>
+    <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" required />
+
+    <button class="btn btn-primary" id="submit-btn" type="submit">Sign in</button>
+  </form>
+
+  <div class="divider">or</div>
+
+  <button class="btn btn-sso" disabled title="Coming soon">
+    Sign in with Airbnb SSO
+    <span class="badge">Soon</span>
+  </button>
+</div>
+
+<script>
+async function signIn(e) {
+  e.preventDefault();
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  const btn = document.getElementById('submit-btn');
+  const errorEl = document.getElementById('error');
+
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  errorEl.style.display = 'none';
+
+  try {
+    const res = await fetch('/graphql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `mutation SignIn($email: String!, $password: String!) {
+          signIn(input: { email: $email, password: $password }) {
+            accessToken
+            refreshToken
+          }
+        }`,
+        variables: { email, password }
+      })
+    });
+    const body = await res.json();
+    const data = body.data?.signIn;
+    if (!data) {
+      const msg = body.errors?.[0]?.message ?? 'Sign in failed';
+      throw new Error(msg.replace(/^.*Authentication failed: /, '').replace(/\{.*\}/, '').trim());
+    }
+    localStorage.setItem('viaaccess_token', data.accessToken);
+    localStorage.setItem('viaaccess_refresh_token', data.refreshToken);
+    window.location.href = '/graphiql';
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Sign in';
+  }
+}
+
+// If already signed in, go straight to GraphiQL
+if (localStorage.getItem('viaaccess_token')) {
+  window.location.href = '/graphiql';
+}
+</script>
+</body>
+</html>

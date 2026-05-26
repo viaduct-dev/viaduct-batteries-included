@@ -225,7 +225,7 @@ class GraphQLAuthenticationIntegrationTest : FunSpec({
                 header(HttpHeaders.Authorization, "Bearer $accessToken")
                 setBody("""
                     {
-                        "query": "mutation CreateGroup(${'$'}name: String!, ${'$'}description: String) { createGroup(input: { name: ${'$'}name, description: ${'$'}description }) { id name description ownerId createdAt } }",
+                        "query": "mutation CreateGroup(${'$'}name: String!, ${'$'}description: String) { createGroup(input: { name: ${'$'}name, description: ${'$'}description }) { id name description createdBy createdAt } }",
                         "variables": {
                             "name": "Test Group from Integration Test",
                             "description": "Testing group creation with authentication"

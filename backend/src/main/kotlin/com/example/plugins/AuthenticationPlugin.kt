@@ -58,15 +58,28 @@ val GraphQLAuthentication = createApplicationPlugin(
     val httpClient = pluginConfig.httpClient
 
     onCall { call ->
-        // Only apply authentication to GraphQL endpoints, but skip OPTIONS (CORS preflight)
-        if (!call.request.local.uri.startsWith("/graphql") || call.request.local.method == HttpMethod.Options) {
+        // Only apply authentication to GraphQL POST endpoints, skip everything else
+        val uri = call.request.local.uri
+        if (!uri.startsWith("/graphql") || call.request.local.method == HttpMethod.Options) {
             return@onCall
         }
+        // /api/schemas handles its own auth — don't intercept it
+        if (uri == "/api/schemas") return@onCall
 
         // Read the request body to check if it's a public operation
         // Note: We need to save it for later since receiveText() consumes the body
         val requestBody = call.receiveText()
         call.attributes.put(RequestBodyKey, requestBody)
+
+        // Check for introspection — pass through unauthenticated, but flag separately
+        // so the router uses the default schema instead of the narrow public schema.
+        val query = try { objectMapper.readTree(requestBody)?.get("query")?.asText() ?: "" } catch (_: Exception) { "" }
+        if (query.trimStart().startsWith("query IntrospectionQuery") ||
+            query.contains("__schema") || query.contains("__type")
+        ) {
+            call.attributes.put(IsIntrospectionKey, true)
+            return@onCall
+        }
 
         // Check if this is a public operation (no auth required)
         if (isPublicOperation(requestBody, objectMapper)) {
@@ -153,6 +166,11 @@ val RequestBodyKey = AttributeKey<String>("RequestBody")
 val IsPublicOperationKey = AttributeKey<Boolean>("IsPublicOperation")
 
 /**
+ * Attribute key to mark a request as an introspection query (no auth, default schema)
+ */
+val IsIntrospectionKey = AttributeKey<Boolean>("IsIntrospection")
+
+/**
  * Extension to get RequestContext from the call attributes
  */
 val ApplicationCall.requestContext: RequestContext
@@ -169,3 +187,9 @@ val ApplicationCall.cachedRequestBody: String?
  */
 val ApplicationCall.isPublicOperation: Boolean
     get() = attributes.getOrNull(IsPublicOperationKey) ?: false
+
+/**
+ * Extension to check if this is an introspection query
+ */
+val ApplicationCall.isIntrospection: Boolean
+    get() = attributes.getOrNull(IsIntrospectionKey) ?: false
