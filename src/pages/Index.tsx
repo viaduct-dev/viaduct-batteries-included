@@ -2,84 +2,37 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSupabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
-import { UserList } from "@/components/UserList";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { LogOut, Shield, BookOpen, Plus } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { executeGraphQL, GET_GROUPS, CREATE_GROUP } from "@/lib/graphql";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LogOut, Shield, ExternalLink } from "lucide-react";
 
-interface Group {
-  id: string;
-  name: string;
-  description?: string;
-}
+const GRAPHQL_BASE = "http://localhost:10000";
+
+const ROLES = [
+  { label: "Default", path: "/graphql", description: "Groups, users, tenant assets" },
+  { label: "GitHub", path: "/graphql/github", description: "GitHub repo & team assets and policies" },
+  { label: "Asana", path: "/graphql/asana", description: "Asana project & portfolio assets and policies" },
+  { label: "Admin", path: "/graphql/admin", description: "Full schema including all tenants" },
+];
 
 const Index = () => {
   const [session, setSession] = useState<Session | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [loadingGroups, setLoadingGroups] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
 
   useEffect(() => {
     const supabase = getSupabase();
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session?.user?.app_metadata?.is_admin) {
-        setIsAdmin(true);
-      }
-      if (!session) {
-        navigate("/auth");
-      } else {
-        loadGroups();
-      }
+      if (!session) navigate("/auth");
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session?.user?.app_metadata?.is_admin) {
-        setIsAdmin(true);
-      } else {
-        setIsAdmin(false);
-      }
-      if (!session) {
-        navigate("/auth");
-      }
+      if (!session) navigate("/auth");
     });
 
     return () => subscription.unsubscribe();
   }, [navigate]);
-
-  const loadGroups = async () => {
-    try {
-      setLoadingGroups(true);
-      const data = await executeGraphQL<{ groups: Group[] }>(GET_GROUPS, {});
-      setGroups(data.groups);
-    } catch (error: any) {
-      console.error("Failed to load groups:", error);
-    } finally {
-      setLoadingGroups(false);
-    }
-  };
-
-  const handleCreateGroup = async () => {
-    const name = prompt("Enter group name:");
-    if (!name) return;
-
-    const description = prompt("Enter group description (optional):");
-
-    try {
-      await executeGraphQL(CREATE_GROUP, { name, description });
-      toast({ title: "Group created successfully" });
-      loadGroups();
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    }
-  };
 
   const handleSignOut = async () => {
     const supabase = getSupabase();
@@ -87,29 +40,32 @@ const Index = () => {
     navigate("/auth");
   };
 
-  if (!session) {
-    return null;
-  }
+  const openGraphiQL = (path: string) => {
+    // GraphiQL (on a different origin) reads viaaccess_token from its own localStorage.
+    // The /graphiql-auth handoff stores the token there then redirects to /graphiql.
+    const token = session?.access_token;
+    const url = `${GRAPHQL_BASE}/graphiql-auth?token=${encodeURIComponent(token ?? "")}&endpoint=${encodeURIComponent(path)}`;
+    window.open(url, "_blank");
+  };
+
+  if (!session) return null;
+
+  const displayName = session.user.user_metadata?.user_name
+    ?? session.user.user_metadata?.name
+    ?? session.user.email
+    ?? session.user.id;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-4 md:p-8">
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-gradient-to-br from-primary to-primary-glow">
               <Shield className="h-6 w-6 text-white" />
             </div>
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-                GraphQL Policy Framework
-              </h1>
-              {isAdmin && (
-                <div className="flex items-center gap-1 text-xs text-primary font-medium mt-1">
-                  <Shield className="h-3 w-3" />
-                  <span>Admin</span>
-                </div>
-              )}
-            </div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
+              ViaAccess
+            </h1>
           </div>
           <Button
             variant="outline"
@@ -121,66 +77,27 @@ const Index = () => {
           </Button>
         </div>
 
-        {isAdmin && <UserList />}
+        <p className="text-sm text-muted-foreground">Signed in as <span className="font-medium">{displayName}</span></p>
 
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>My Groups</CardTitle>
-                <CardDescription>Groups you're a member of</CardDescription>
-              </div>
-              <Button onClick={handleCreateGroup} size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                New Group
-              </Button>
-            </div>
+            <CardTitle>GraphQL Endpoints</CardTitle>
           </CardHeader>
-          <CardContent>
-            {loadingGroups ? (
-              <p className="text-muted-foreground">Loading groups...</p>
-            ) : groups.length === 0 ? (
-              <p className="text-muted-foreground">No groups yet. Create one to get started!</p>
-            ) : (
-              <div className="space-y-3">
-                {groups.map((group) => (
-                  <Card key={group.id} className="hover:shadow-md transition-shadow">
-                    <CardHeader className="py-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <CardTitle className="text-lg">{group.name}</CardTitle>
-                          {group.description && (
-                            <CardDescription>{group.description}</CardDescription>
-                          )}
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/blog/${group.id}`)}
-                        >
-                          <BookOpen className="h-4 w-4 mr-2" />
-                          View Blog
-                        </Button>
-                      </div>
-                    </CardHeader>
-                  </Card>
-                ))}
+          <CardContent className="space-y-3">
+            {ROLES.map((role) => (
+              <div key={role.path} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/5 transition-colors">
+                <div>
+                  <p className="font-medium">{role.label}</p>
+                  <p className="text-sm text-muted-foreground">{role.description}</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => openGraphiQL(role.path)}>
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open GraphiQL
+                </Button>
               </div>
-            )}
+            ))}
           </CardContent>
         </Card>
-
-        <div className="bg-card rounded-lg border p-6 space-y-4">
-          <h2 className="text-xl font-semibold">Welcome to the GraphQL Policy Framework</h2>
-          <p className="text-muted-foreground">
-            This is a generic policy checker framework with group-based access control.
-            Each group acts as a separate multi-tenant blog platform.
-          </p>
-        </div>
-
-        <p className="text-center text-sm text-muted-foreground">
-          Powered by GraphQL • {session.user.email}
-        </p>
       </div>
     </div>
   );

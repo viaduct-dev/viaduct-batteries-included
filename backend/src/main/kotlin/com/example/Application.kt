@@ -306,6 +306,25 @@ fun Application.configureApplication(
             call.respondText(html, ContentType.Text.Html)
         }
 
+        // Token handoff: frontend can't write to this origin's localStorage directly.
+        // This endpoint accepts a token + endpoint via query params, stores the token
+        // in localStorage via a small inline script, then redirects to GraphiQL.
+        get("/graphiql-auth") {
+            val token = call.request.queryParameters["token"] ?: ""
+            val endpoint = call.request.queryParameters["endpoint"] ?: "/graphql"
+            val html = """
+                <!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
+                <script>
+                  if (${token.isNotBlank()}) {
+                    localStorage.setItem('viaaccess_token', ${com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(token)});
+                  }
+                  window.location.replace('/graphiql?endpoint=${java.net.URLEncoder.encode(endpoint, "UTF-8")}');
+                </script>
+                </body></html>
+            """.trimIndent()
+            call.respondText(html, ContentType.Text.Html)
+        }
+
         // Stub for future Okta SAML callback — Supabase will redirect here after SSO handshake.
         // When Okta is configured, implement: exchange the Supabase SSO code for a session,
         // store the token, and redirect to /graphiql.

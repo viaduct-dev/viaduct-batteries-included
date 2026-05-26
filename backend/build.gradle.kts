@@ -21,6 +21,7 @@ dependencies {
     compileOnly("com.airbnb.viaduct:api:${libs.versions.viaduct.get()}")
     compileOnly("com.airbnb.viaduct:runtime:${libs.versions.viaduct.get()}")
     compileOnly("com.airbnb.viaduct:buildtime:${libs.versions.viaduct.get()}")
+    runtimeOnly("com.airbnb.viaduct:buildtime:${libs.versions.viaduct.get()}")
     implementation("com.airbnb.viaduct:runtime:${libs.versions.viaduct.get()}")
     compileOnly("javax.inject:javax.inject:1")
     testCompileOnly("com.airbnb.viaduct:api:${libs.versions.viaduct.get()}")
