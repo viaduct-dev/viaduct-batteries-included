@@ -88,7 +88,8 @@ extend type Mutation @scope(to: ["default"]) {
 
   """
   Archive a group. Sets status to DELETING, enqueues RECONCILE_ASSET for all
-  affected assets, then marks ARCHIVED. Requires TenantAsset(default) EDITOR.
+  affected assets so external services converge, then marks ARCHIVED synchronously.
+  Requires TenantAsset(default) EDITOR.
   """
   archiveGroup(input: ArchiveGroupInput!): Group! @resolver
 }

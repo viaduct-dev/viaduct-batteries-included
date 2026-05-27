@@ -1099,16 +1099,17 @@ class AuthenticatedSupabaseClient(
         val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/sync_jobs") {
             header("Authorization", "Bearer $accessToken")
             header("apikey", supabaseKey)
-            // resolution=ignore-duplicates: partial unique index on active RECONCILE_ASSET
-            // jobs causes a 409 on plain INSERT; this turns it into a no-op and returns empty.
-            header("Prefer", "return=representation,resolution=ignore-duplicates")
+            header("Prefer", "return=representation")
             contentType(ContentType.Application.Json)
             setBody("""{"asset_id":"$assetId","asset_type":"$assetType","tenant_name":"$tenantName","action":"$action"}""")
         }
-        val body = response.bodyAsText()
-        val list = json.decodeFromString<List<com.example.services.SyncJobEntity>>(body)
-        if (list.isNotEmpty()) return list.first()
-        // Conflict: an active RECONCILE_ASSET job already exists — return it
+        // PostgREST returns 201 on successful insert, 409 when the partial unique index on
+        // active RECONCILE_ASSET jobs fires.  Check status before decoding to avoid
+        // deserializing an error body as a SyncJobEntity list.
+        if (response.status.value == 201) {
+            return json.decodeFromString<List<com.example.services.SyncJobEntity>>(response.bodyAsText()).first()
+        }
+        // Conflict: return the existing active job
         val existing: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/sync_jobs") {
             header("Authorization", "Bearer $accessToken")
             header("apikey", supabaseKey)

@@ -17,24 +17,33 @@ class ApproveAccessRequestResolver(
         val request = ctx.authenticatedClient.getAccessRequestById(requestId)
             ?: error("Access request not found: $requestId")
 
-        if (request.status != "PENDING") {
-            error("Access request is not in PENDING state (current: ${request.status})")
-        }
-
         ctx.requireTenantPermission(authService, request.tenant_name, TenantPermission.EDITOR)
+
+        // Allow replaying an already-APPROVED request so that a partial failure
+        // (policy write or sync enqueue threw after the CAS committed) can be
+        // retried without reverting the status.  Any other terminal status is a
+        // hard error.
+        if (request.status != "PENDING" && request.status != "APPROVED") {
+            error("Access request is not approvable (current status: ${request.status})")
+        }
 
         val asset = ctx.authenticatedClient.getAssetById(request.asset_id)
             ?: error("Asset not found: ${request.asset_id}")
 
-        // CAS first — guards against double-approve. Only write the live policy if we win.
-        val updated = ctx.authenticatedClient.transitionAccessRequestFromPending(
-            id = requestId,
-            status = "APPROVED",
-            reviewedBy = ctx.userId,
-            reviewerNote = note,
-        ) ?: error("Access request was already processed by another reviewer")
+        // CAS: atomically move PENDING → APPROVED. Returns null if another reviewer
+        // already won the race (or we are replaying an APPROVED request).
+        val updated = if (request.status == "PENDING") {
+            ctx.authenticatedClient.transitionAccessRequestFromPending(
+                id = requestId,
+                status = "APPROVED",
+                reviewedBy = ctx.userId,
+                reviewerNote = note,
+            ) ?: error("Access request was already processed by another reviewer")
+        } else {
+            request  // replay: CAS already committed, re-run idempotent steps below
+        }
 
-        // Policy upsert is idempotent — safe to retry if enqueue or later steps fail.
+        // These three steps are all idempotent — safe to re-run on retry.
         when (asset.asset_type) {
             "GITHUB_REPO"     -> ctx.authenticatedClient.upsertGitHubRepoPolicy(request.asset_id, request.group_id, request.requested_permission)
             "GITHUB_TEAM"     -> ctx.authenticatedClient.upsertGitHubTeamPolicy(request.asset_id, request.group_id, request.requested_permission)

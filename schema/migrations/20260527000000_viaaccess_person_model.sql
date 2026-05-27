@@ -331,11 +331,14 @@ BEGIN
 
     IF v_person_id IS NOT NULL THEN
         -- Person was pre-provisioned — link their auth account now that they've signed in.
-        -- trg_create_person_for_new_user may have already created a blank person for this
-        -- auth_user_id. Delete it first (it has no memberships or identities yet) so the
-        -- UNIQUE constraint on persons.auth_user_id doesn't block the UPDATE below.
-        DELETE FROM public.persons
-        WHERE auth_user_id = NEW.user_id AND id <> v_person_id;
+        -- trg_create_person_for_new_user may have created a blank placeholder for this
+        -- auth_user_id. Remove it only if it is truly empty (no memberships, no
+        -- identities), so we don't accidentally discard a real user's data.
+        DELETE FROM public.persons p
+        WHERE p.auth_user_id = NEW.user_id
+          AND p.id <> v_person_id
+          AND NOT EXISTS (SELECT 1 FROM public.group_members gm WHERE gm.person_id = p.id)
+          AND NOT EXISTS (SELECT 1 FROM public.external_identities ei WHERE ei.person_id = p.id);
 
         UPDATE public.persons SET auth_user_id = NEW.user_id WHERE id = v_person_id;
         -- Update username in case it changed
