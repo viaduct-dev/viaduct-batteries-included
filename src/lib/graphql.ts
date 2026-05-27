@@ -296,3 +296,230 @@ export async function fetchSupabaseConfig(): Promise<{ url: string; anonKey: str
 
   return result.data.supabaseConfig;
 }
+
+// ============================================================================
+// VIAACCESS OPERATIONS
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// Groups
+// ----------------------------------------------------------------------------
+
+export const GET_GROUPS_WITH_SUMMARY = `
+  query GetGroupsWithSummary {
+    groups {
+      id
+      name
+      description
+      status
+      createdAt
+      members {
+        id
+        personId
+        joinedAt
+      }
+      accessSummary {
+        assetType
+        assetName
+        externalId
+        permission
+        syncStatus
+      }
+    }
+  }
+`;
+
+export const GET_PERSONS = `
+  query GetPersons {
+    persons {
+      id
+      displayName
+      email
+      authUserId
+      createdAt
+    }
+  }
+`;
+
+export const CREATE_GROUP_VIAACCESS = `
+  mutation CreateGroupViaAccess($name: String!, $description: String) {
+    createGroup(input: { name: $name, description: $description }) {
+      id
+      name
+      description
+      status
+      createdAt
+    }
+  }
+`;
+
+export const ADD_GROUP_MEMBER_VIAACCESS = `
+  mutation AddGroupMemberViaAccess($groupId: ID!, $personId: String!) {
+    addGroupMember(input: { groupId: $groupId, personId: $personId }) {
+      id
+      personId
+      groupId
+      joinedAt
+    }
+  }
+`;
+
+export const REMOVE_GROUP_MEMBER_VIAACCESS = `
+  mutation RemoveGroupMemberViaAccess($groupId: ID!, $personId: String!) {
+    removeGroupMember(input: { groupId: $groupId, personId: $personId })
+  }
+`;
+
+export const ARCHIVE_GROUP = `
+  mutation ArchiveGroup($groupId: ID!) {
+    archiveGroup(input: { groupId: $groupId }) {
+      id
+      status
+    }
+  }
+`;
+
+// ----------------------------------------------------------------------------
+// Tenant Assets & Access
+// ----------------------------------------------------------------------------
+
+export const GET_TENANT_ASSETS = `
+  query GetTenantAssets {
+    tenantAssets {
+      id
+      tenantName
+      createdAt
+      policies {
+        id
+        groupId
+        permission
+        group {
+          id
+          name
+        }
+      }
+    }
+  }
+`;
+
+export const GET_REQUESTABLE_ASSETS = `
+  query GetRequestableAssets($tenantName: String, $query: String) {
+    requestableAssets(tenantName: $tenantName, query: $query) {
+      id
+      tenantName
+      assetType
+      name
+      externalId
+      availablePermissions
+    }
+  }
+`;
+
+export const GET_PENDING_ACCESS_REQUESTS = `
+  query GetPendingAccessRequests($tenantName: String!) {
+    pendingAccessRequests(tenantName: $tenantName) {
+      id
+      tenantName
+      assetId
+      groupId
+      requestedPermission
+      status
+      requestedBy
+      reviewedBy
+      requestedAt
+      reviewedAt
+      reviewerNote
+    }
+  }
+`;
+
+export const REQUEST_GROUP_ACCESS = `
+  mutation RequestGroupAccess($assetId: ID!, $groupId: ID!, $requestedPermission: String!) {
+    requestGroupAccess(input: {
+      assetId: $assetId
+      groupId: $groupId
+      requestedPermission: $requestedPermission
+    }) {
+      id
+      status
+      requestedAt
+    }
+  }
+`;
+
+export const APPROVE_ACCESS_REQUEST = `
+  mutation ApproveAccessRequest($id: ID!, $note: String) {
+    approveAccessRequest(id: $id, note: $note) {
+      id
+      status
+      reviewedAt
+    }
+  }
+`;
+
+export const REJECT_ACCESS_REQUEST = `
+  mutation RejectAccessRequest($id: ID!, $note: String) {
+    rejectAccessRequest(id: $id, note: $note) {
+      id
+      status
+      reviewedAt
+    }
+  }
+`;
+
+// ----------------------------------------------------------------------------
+// GitHub Assets
+// ----------------------------------------------------------------------------
+
+export const GET_GITHUB_REPO_ASSETS = `
+  query GetGitHubRepoAssets {
+    githubRepoAssets {
+      id
+      name
+      owner
+      repo
+      createdAt
+      policies {
+        id
+        groupId
+        permission
+        syncStatus
+      }
+    }
+  }
+`;
+
+export const GET_GITHUB_TEAM_ASSETS = `
+  query GetGitHubTeamAssets {
+    githubTeamAssets {
+      id
+      name
+      org
+      slug
+      createdAt
+      policies {
+        id
+        groupId
+        permission
+        syncStatus
+      }
+    }
+  }
+`;
+
+export const GET_SYNC_JOB = `
+  query GetSyncJob($id: ID!) {
+    syncJob(id: $id) {
+      id
+      assetId
+      assetType
+      action
+      status
+      planSummary
+      lastError
+      attemptCount
+      createdAt
+      completedAt
+    }
+  }
+`;
