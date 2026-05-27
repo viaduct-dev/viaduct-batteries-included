@@ -36,8 +36,8 @@ class GitHubSyncExecutor(
             val missingIdentities = mutableListOf<String>()
             for (policy in policies) {
                 for (member in db.loadMembersForGroup(policy.groupId)) {
-                    if (db.loadExternalIdentity(member.userId, "github") == null) {
-                        missingIdentities += member.userId
+                    if (db.loadExternalIdentity(member.personId, "github") == null) {
+                        missingIdentities += member.personId
                     }
                 }
             }

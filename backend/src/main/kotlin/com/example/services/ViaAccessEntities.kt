@@ -116,9 +116,18 @@ data class SyncJobEntity(
 )
 
 @Serializable
+data class PersonEntity(
+    val id: String,
+    val display_name: String? = null,
+    val email: String? = null,
+    val auth_user_id: String? = null,
+    val created_at: String
+)
+
+@Serializable
 data class ExternalIdentityEntity(
     val id: String,
-    val user_id: String,
+    val person_id: String,
     val provider: String,
     val external_user_id: String,
     val external_username: String,

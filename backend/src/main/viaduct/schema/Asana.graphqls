@@ -90,7 +90,7 @@ input DeleteAsanaPortfolioPolicyInput @scope(to: ["asana"]) {
 }
 
 input SetAsanaIdentityInput @scope(to: ["asana"]) {
-  userId: String!
+  personId: String!
   externalUserId: String!
   externalUsername: String!
 }

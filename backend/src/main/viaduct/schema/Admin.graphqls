@@ -9,9 +9,9 @@ type ProviderUserView @scope(to: ["admin", "github", "asana"]) {
   externalUsername: String!
   """Email as reported by the provider, if available."""
   email: String
-  """Set if this external identity is already linked to a ViaAccess user."""
+  """Set if this external identity is already linked to a person."""
   linkedUserId: String
-  """Email of the linked ViaAccess user, for display."""
+  """Email of the linked person, for display."""
   linkedUserEmail: String
   """Whether the link has been verified by a successful reconciliation."""
   verified: Boolean!
@@ -21,8 +21,8 @@ input ReconcileToExistingUserInput @scope(to: ["admin"]) {
   provider: String!
   externalUserId: String!
   externalUsername: String!
-  """The ViaAccess user ID to link this external identity to."""
-  userId: String!
+  """The person ID to link this external identity to."""
+  personId: String!
 }
 
 input ReconcileToNewUserInput @scope(to: ["admin"]) {

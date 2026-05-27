@@ -22,7 +22,7 @@ class GroupMembersResolver(
             GroupMember.Builder(ctx)
                 .id(entity.id)
                 .groupId(entity.group_id)
-                .userId(entity.user_id)
+                .personId(entity.person_id)
                 .joinedAt(entity.joined_at)
                 .build()
         }

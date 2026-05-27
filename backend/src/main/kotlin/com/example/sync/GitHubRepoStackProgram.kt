@@ -34,7 +34,7 @@ suspend fun resolveEffectiveAccess(assetId: String, db: StackDb): Map<String, Gi
         val permission = GitHubRepoPermission.valueOf(policy.permission)
         val members = db.loadMembersForGroup(policy.groupId)
         for (member in members) {
-            val username = db.loadExternalIdentity(member.userId, "github") ?: continue
+            val username = db.loadExternalIdentity(member.personId, "github") ?: continue
             val current = effective[username]
             if (current == null || permission > current) {
                 effective[username] = permission

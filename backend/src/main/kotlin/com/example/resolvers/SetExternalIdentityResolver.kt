@@ -18,7 +18,7 @@ class SetExternalIdentityResolver(
         val input = ctx.arguments.input
         val entity = viaAccessService.upsertExternalIdentity(
             ctx.authenticatedClient,
-            userId = input.userId,
+            personId = input.personId,
             provider = "github",
             externalUserId = input.externalUserId,
             externalUsername = input.externalUsername,

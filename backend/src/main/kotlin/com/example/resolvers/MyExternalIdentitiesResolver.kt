@@ -11,7 +11,10 @@ class MyExternalIdentitiesResolver(
     private val viaAccessService: ViaAccessService
 ) : QueryResolvers.MyExternalIdentities() {
     override suspend fun resolve(ctx: Context): List<ExternalIdentity> {
-        return viaAccessService.getExternalIdentitiesForUser(ctx.authenticatedClient, ctx.userId)
+        // Find the person linked to the current auth user, then return their identities
+        val persons = ctx.authenticatedClient.getPersonsByAuthUserId(listOf(ctx.userId))
+        val person = persons.firstOrNull() ?: return emptyList()
+        return viaAccessService.getExternalIdentitiesForPerson(ctx.authenticatedClient, person.id)
             .map { it.toGrt(ctx) }
     }
 }
@@ -19,7 +22,7 @@ class MyExternalIdentitiesResolver(
 internal fun ExternalIdentityEntity.toGrt(ctx: viaduct.api.context.ExecutionContext): ExternalIdentity =
     ExternalIdentity.Builder(ctx)
         .id(ctx.globalIDFor(ExternalIdentity.Reflection, id))
-        .userId(user_id)
+        .personId(person_id)
         .provider(provider)
         .externalUserId(external_user_id)
         .externalUsername(external_username)

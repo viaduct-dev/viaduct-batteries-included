@@ -38,17 +38,29 @@ open class ViaAccessService(
         action: String
     ): SyncJobEntity = client.createSyncJob(assetId, assetType, tenantName, action)
 
-    open suspend fun getExternalIdentitiesForUser(client: AuthenticatedSupabaseClient, userId: String): List<ExternalIdentityEntity> =
-        client.getExternalIdentitiesForUser(userId)
+    open suspend fun getExternalIdentitiesForPerson(client: AuthenticatedSupabaseClient, personId: String): List<ExternalIdentityEntity> =
+        client.getExternalIdentitiesForPerson(personId)
 
     open suspend fun upsertExternalIdentity(
         client: AuthenticatedSupabaseClient,
-        userId: String,
+        personId: String,
         provider: String,
         externalUserId: String,
         externalUsername: String,
         verified: Boolean = false
-    ): ExternalIdentityEntity = client.upsertExternalIdentity(userId, provider, externalUserId, externalUsername, verified)
+    ): ExternalIdentityEntity = client.upsertExternalIdentity(personId, provider, externalUserId, externalUsername, verified)
+
+    open suspend fun getOrCreatePerson(
+        client: AuthenticatedSupabaseClient,
+        displayName: String? = null,
+        email: String? = null,
+    ): PersonEntity = client.upsertPerson(displayName = displayName, email = email)
+
+    open suspend fun mergePersons(
+        client: AuthenticatedSupabaseClient,
+        targetPersonId: String,
+        sourcePersonId: String
+    ): Boolean = client.mergePersons(targetPersonId, sourcePersonId)
 
     open suspend fun getPolicySummaryForGroup(client: AuthenticatedSupabaseClient, groupId: String): List<PolicySummaryRow> =
         client.getPolicySummaryForGroup(groupId)
@@ -150,7 +162,7 @@ open class ViaAccessService(
         client.deleteAsanaPortfolioPolicy(id)
 
     open suspend fun getExternalIdentitiesByProvider(client: AuthenticatedSupabaseClient, provider: String): List<ExternalIdentityEntity> =
-        client.getExternalIdentitiesByProviderWithUsers(provider)
+        client.getExternalIdentitiesByProviderWithPersons(provider)
 
     open suspend fun getProviderUsersForGroups(
         client: AuthenticatedSupabaseClient,
@@ -158,8 +170,8 @@ open class ViaAccessService(
         provider: String
     ): List<ExternalIdentityEntity> {
         val members = client.getGroupMembersForGroups(groupIds)
-        val userIds = members.map { it.user_id }.distinct()
-        return client.getExternalIdentitiesForUsersAndProvider(userIds, provider)
+        val personIds = members.map { it.person_id }.distinct()
+        return client.getExternalIdentitiesForPersonsAndProvider(personIds, provider)
     }
 
     open suspend fun inviteAndLinkUser(
@@ -169,8 +181,9 @@ open class ViaAccessService(
         externalUserId: String,
         externalUsername: String
     ): Pair<String, ExternalIdentityEntity> {
-        val userId = client.inviteUserByEmail(email, supabaseService.serviceRoleKey)
-        val identity = client.upsertExternalIdentity(userId, provider, externalUserId, externalUsername, verified = true)
-        return userId to identity
+        val authUserId = client.inviteUserByEmail(email, supabaseService.serviceRoleKey)
+        val person = client.upsertPerson(authUserId = authUserId, email = email)
+        val identity = client.upsertExternalIdentity(person.id, provider, externalUserId, externalUsername, verified = true)
+        return person.id to identity
     }
 }

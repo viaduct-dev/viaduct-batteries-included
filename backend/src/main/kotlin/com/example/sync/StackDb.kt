@@ -8,7 +8,7 @@ package com.example.sync
 interface StackDb {
     suspend fun loadPoliciesForAsset(assetId: String): List<PolicyRow>
     suspend fun loadMembersForGroup(groupId: String): List<MemberRow>
-    suspend fun loadExternalIdentity(userId: String, provider: String): String?
+    suspend fun loadExternalIdentity(personId: String, provider: String): String?
 }
 
 data class PolicyRow(
@@ -17,5 +17,5 @@ data class PolicyRow(
 )
 
 data class MemberRow(
-    val userId: String,
+    val personId: String,
 )

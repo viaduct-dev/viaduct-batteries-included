@@ -401,14 +401,8 @@ class AuthenticatedSupabaseClient(
         return json.decodeFromString(response.bodyAsText())
     }
 
-    /**
-     * Add a member to a group
-     */
-    suspend fun addGroupMember(groupId: String, userId: String): com.example.services.GroupMemberEntity {
-        val input = com.example.services.AddMemberInput(
-            group_id = groupId,
-            user_id = userId
-        )
+    suspend fun addGroupMember(groupId: String, personId: String): com.example.services.GroupMemberEntity {
+        val input = com.example.services.AddMemberInput(group_id = groupId, person_id = personId)
         val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/group_members") {
             header("Authorization", "Bearer $accessToken")
             header("apikey", supabaseKey)
@@ -416,20 +410,120 @@ class AuthenticatedSupabaseClient(
             contentType(ContentType.Application.Json)
             setBody(json.encodeToString(com.example.services.AddMemberInput.serializer(), input))
         }
-        val jsonString = response.bodyAsText()
-        val members = json.decodeFromString<List<com.example.services.GroupMemberEntity>>(jsonString)
-        return members.first()
+        return json.decodeFromString<List<com.example.services.GroupMemberEntity>>(response.bodyAsText()).first()
     }
 
-    /**
-     * Remove a member from a group
-     */
-    suspend fun removeGroupMember(groupId: String, userId: String): Boolean {
+    suspend fun removeGroupMember(groupId: String, personId: String): Boolean {
         httpClient.delete("$supabaseUrl/rest/v1/group_members") {
             header("Authorization", "Bearer $accessToken")
             header("apikey", supabaseKey)
             parameter("group_id", "eq.$groupId")
-            parameter("user_id", "eq.$userId")
+            parameter("person_id", "eq.$personId")
+        }
+        return true
+    }
+
+    suspend fun getPersonsByAuthUserId(authUserIds: List<String>): List<com.example.services.PersonEntity> {
+        if (authUserIds.isEmpty()) return emptyList()
+        val inClause = authUserIds.joinToString(",") { "\"$it\"" }
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/persons") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("auth_user_id", "in.($inClause)")
+            parameter("select", "*")
+        }
+        return json.decodeFromString(response.bodyAsText())
+    }
+
+    suspend fun getPersonById(personId: String): com.example.services.PersonEntity? {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/persons") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("id", "eq.$personId")
+            parameter("select", "*")
+        }
+        return json.decodeFromString<List<com.example.services.PersonEntity>>(response.bodyAsText()).firstOrNull()
+    }
+
+    suspend fun getPersonsByIds(personIds: List<String>): List<com.example.services.PersonEntity> {
+        if (personIds.isEmpty()) return emptyList()
+        val inClause = personIds.joinToString(",") { "\"$it\"" }
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/persons") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("id", "in.($inClause)")
+            parameter("select", "*")
+        }
+        return json.decodeFromString(response.bodyAsText())
+    }
+
+    suspend fun upsertPerson(
+        authUserId: String? = null,
+        displayName: String? = null,
+        email: String? = null,
+    ): com.example.services.PersonEntity {
+        val fields = buildString {
+            append("{")
+            if (authUserId != null) append("\"auth_user_id\":\"$authUserId\",")
+            if (displayName != null) append("\"display_name\":${json.encodeToString(displayName)},")
+            if (email != null) append("\"email\":${json.encodeToString(email)},")
+            if (endsWith(",")) deleteCharAt(length - 1)
+            append("}")
+        }
+        val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/persons") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation,resolution=merge-duplicates")
+            contentType(ContentType.Application.Json)
+            setBody(fields)
+        }
+        return json.decodeFromString<List<com.example.services.PersonEntity>>(response.bodyAsText()).first()
+    }
+
+    suspend fun getAllPersons(): List<com.example.services.PersonEntity> {
+        val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/persons") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("order", "created_at.asc")
+        }
+        return json.decodeFromString(response.bodyAsText())
+    }
+
+    suspend fun linkPersonToAuthUser(personId: String, authUserId: String): com.example.services.PersonEntity {
+        val response: HttpResponse = httpClient.patch("$supabaseUrl/rest/v1/persons") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            header("Prefer", "return=representation")
+            parameter("id", "eq.$personId")
+            contentType(ContentType.Application.Json)
+            setBody("""{"auth_user_id":"$authUserId"}""")
+        }
+        return json.decodeFromString<List<com.example.services.PersonEntity>>(response.bodyAsText()).first()
+    }
+
+    suspend fun mergePersons(targetPersonId: String, sourcePersonId: String): Boolean {
+        // Re-parent all memberships from source to target
+        httpClient.patch("$supabaseUrl/rest/v1/group_members") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("person_id", "eq.$sourcePersonId")
+            contentType(ContentType.Application.Json)
+            setBody("""{"person_id":"$targetPersonId"}""")
+        }
+        // Re-parent all external identities from source to target
+        httpClient.patch("$supabaseUrl/rest/v1/external_identities") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("person_id", "eq.$sourcePersonId")
+            contentType(ContentType.Application.Json)
+            setBody("""{"person_id":"$targetPersonId"}""")
+        }
+        // Delete the now-empty source person
+        httpClient.delete("$supabaseUrl/rest/v1/persons") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("id", "eq.$sourcePersonId")
         }
         return true
     }
@@ -568,9 +662,10 @@ class AuthenticatedSupabaseClient(
         if (policies.isEmpty()) return false
         val groupIds = policies.map { it.group_id }
         val members = getGroupMembersForGroups(groupIds)
-        return members.any { it.user_id == userId }
+        val persons = getPersonsByAuthUserId(listOf(userId))
+        val personIds = persons.map { it.id }.toSet()
+        return members.any { it.person_id in personIds }
     }
-
 
     suspend fun getUserTenantNames(userId: String): Set<String> {
         val nonDefaultTenants = getTenantAssets().filter { it.tenant_name != "default" }
@@ -578,7 +673,9 @@ class AuthenticatedSupabaseClient(
         val allPolicies = nonDefaultTenants.flatMap { getTenantAssetPolicies(it.id) }
         if (allPolicies.isEmpty()) return emptySet()
         val members = getGroupMembersForGroups(allPolicies.map { it.group_id }.distinct())
-        val userGroupIds = members.filter { it.user_id == userId }.map { it.group_id }.toSet()
+        val persons = getPersonsByAuthUserId(listOf(userId))
+        val personIds = persons.map { it.id }.toSet()
+        val userGroupIds = members.filter { it.person_id in personIds }.map { it.group_id }.toSet()
         val accessibleTenantAssetIds = allPolicies.filter { it.group_id in userGroupIds }.map { it.tenant_asset_id }.toSet()
         return nonDefaultTenants.filter { it.id in accessibleTenantAssetIds }.map { it.tenant_name }.toSet()
     }
@@ -1035,12 +1132,12 @@ class AuthenticatedSupabaseClient(
     // ViaAccess: External identities
     // -------------------------------------------------------------------------
 
-    suspend fun getExternalIdentitiesForUser(userId: String): List<com.example.services.ExternalIdentityEntity> {
+    suspend fun getExternalIdentitiesForPerson(personId: String): List<com.example.services.ExternalIdentityEntity> {
         val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/external_identities") {
             header("Authorization", "Bearer $accessToken")
             header("apikey", supabaseKey)
             parameter("select", "*")
-            parameter("user_id", "eq.$userId")
+            parameter("person_id", "eq.$personId")
         }
         return json.decodeFromString(response.bodyAsText())
     }
@@ -1055,31 +1152,31 @@ class AuthenticatedSupabaseClient(
         return json.decodeFromString(response.bodyAsText())
     }
 
-    suspend fun getExternalIdentitiesForUsersAndProvider(
-        userIds: List<String>,
+    suspend fun getExternalIdentitiesForPersonsAndProvider(
+        personIds: List<String>,
         provider: String
     ): List<com.example.services.ExternalIdentityEntity> {
-        if (userIds.isEmpty()) return emptyList()
-        val inClause = userIds.joinToString(",") { "\"$it\"" }
+        if (personIds.isEmpty()) return emptyList()
+        val inClause = personIds.joinToString(",") { "\"$it\"" }
         val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/external_identities") {
             header("Authorization", "Bearer $accessToken")
             header("apikey", supabaseKey)
             parameter("select", "*")
             parameter("provider", "eq.$provider")
-            parameter("user_id", "in.($inClause)")
+            parameter("person_id", "in.($inClause)")
         }
         return json.decodeFromString(response.bodyAsText())
     }
 
     suspend fun upsertExternalIdentity(
-        userId: String,
+        personId: String,
         provider: String,
         externalUserId: String,
         externalUsername: String,
         verified: Boolean = false
     ): com.example.services.ExternalIdentityEntity {
         val verifiedAt = if (verified) "\"now()\"" else "null"
-        val body = """{"user_id":"$userId","provider":"$provider","external_user_id":"$externalUserId","external_username":"$externalUsername","verified_at":$verifiedAt}"""
+        val body = """{"person_id":"$personId","provider":"$provider","external_user_id":"$externalUserId","external_username":"$externalUsername","verified_at":$verifiedAt}"""
         val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/external_identities") {
             header("Authorization", "Bearer $accessToken")
             header("apikey", supabaseKey)
@@ -1164,15 +1261,7 @@ class AuthenticatedSupabaseClient(
     // Admin: provider user roster + invite-and-link
     // -------------------------------------------------------------------------
 
-    /**
-     * List all known external identities for a given provider, joined to system user email where available.
-     * Returns all rows from external_identities — both linked (have a user_id) and unlinked
-     * entries created by importProviderIdentities for unmatched users.
-     *
-     * Note: unlinked entries have external_user_id set but user_id points to a sentinel or is
-     * managed externally; the resolver filters/enriches via getAllUsers.
-     */
-    suspend fun getExternalIdentitiesByProviderWithUsers(provider: String): List<com.example.services.ExternalIdentityEntity> {
+    suspend fun getExternalIdentitiesByProviderWithPersons(provider: String): List<com.example.services.ExternalIdentityEntity> {
         val response: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/external_identities") {
             header("Authorization", "Bearer $accessToken")
             header("apikey", supabaseKey)

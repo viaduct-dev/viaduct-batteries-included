@@ -15,17 +15,18 @@ class ReconcileToExistingUserResolver(
         val input = ctx.arguments.input
         val identity = viaAccessService.upsertExternalIdentity(
             ctx.authenticatedClient,
-            userId = input.userId,
+            personId = input.personId,
             provider = input.provider,
             externalUserId = input.externalUserId,
             externalUsername = input.externalUsername
         )
-        val user = userService.getUserById(ctx.authenticatedClient, input.userId)
+        val person = ctx.authenticatedClient.getPersonById(input.personId)
+        val user = person?.auth_user_id?.let { userService.getUserById(ctx.authenticatedClient, it) }
         return ProviderUserView.Builder(ctx)
             .provider(identity.provider)
             .externalUserId(identity.external_user_id)
             .externalUsername(identity.external_username)
-            .linkedUserId(identity.user_id)
+            .linkedUserId(identity.person_id)
             .linkedUserEmail(user?.email)
             .verified(identity.verified_at != null)
             .build()

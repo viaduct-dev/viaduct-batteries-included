@@ -20,7 +20,7 @@ data class CheckboxGroupEntity(
 data class GroupMemberEntity(
     val id: String,
     val group_id: String,
-    val user_id: String,
+    val person_id: String,
     val joined_at: String
 )
 
@@ -34,7 +34,7 @@ data class CreateGroupInput(
 @Serializable
 data class AddMemberInput(
     val group_id: String,
-    val user_id: String
+    val person_id: String
 )
 
 /**
@@ -51,7 +51,10 @@ open class GroupService(
      */
     open suspend fun isUserMemberOfGroup(userId: String, groupId: String, requestContext: RequestContext): Boolean {
         val members = requestContext.authenticatedClient.getGroupMembers(groupId)
-        return members.any { it.user_id == userId }
+        // userId here is an auth user ID; compare via the person's auth_user_id
+        val persons = requestContext.authenticatedClient.getPersonsByAuthUserId(listOf(userId))
+        val personIds = persons.map { it.id }.toSet()
+        return members.any { it.person_id in personIds }
     }
 
     /**
@@ -94,9 +97,9 @@ open class GroupService(
     suspend fun addGroupMember(
         authenticatedClient: AuthenticatedSupabaseClient,
         groupId: String,
-        userId: String
+        personId: String
     ): GroupMemberEntity {
-        return authenticatedClient.addGroupMember(groupId, userId)
+        return authenticatedClient.addGroupMember(groupId, personId)
     }
 
     /**
@@ -105,9 +108,9 @@ open class GroupService(
     suspend fun removeGroupMember(
         authenticatedClient: AuthenticatedSupabaseClient,
         groupId: String,
-        userId: String
+        personId: String
     ): Boolean {
-        return authenticatedClient.removeGroupMember(groupId, userId)
+        return authenticatedClient.removeGroupMember(groupId, personId)
     }
 
     suspend fun updateGroupStatus(

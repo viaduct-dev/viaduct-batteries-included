@@ -11,7 +11,7 @@ class ReconcileToNewUserResolver(
 ) : MutationResolvers.ReconcileToNewUser() {
     override suspend fun resolve(ctx: Context): ProviderUserView {
         val input = ctx.arguments.input
-        val (userId, identity) = viaAccessService.inviteAndLinkUser(
+        val (personId, identity) = viaAccessService.inviteAndLinkUser(
             ctx.authenticatedClient,
             email = input.email,
             provider = input.provider,
@@ -22,7 +22,7 @@ class ReconcileToNewUserResolver(
             .provider(identity.provider)
             .externalUserId(identity.external_user_id)
             .externalUsername(identity.external_username)
-            .linkedUserId(userId)
+            .linkedUserId(personId)
             .linkedUserEmail(input.email)
             .verified(false)
             .build()

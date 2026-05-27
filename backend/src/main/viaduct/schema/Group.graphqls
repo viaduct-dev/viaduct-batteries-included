@@ -45,7 +45,7 @@ enum PolicySyncStatus @scope(to: ["default", "github", "asana", "admin"]) {
 type GroupMember @scope(to: ["default"]) {
   id: ID!
   groupId: String!
-  userId: String!
+  personId: String!
   joinedAt: String!
 }
 
@@ -56,12 +56,12 @@ input CreateGroupInput @scope(to: ["default"]) {
 
 input AddGroupMemberInput @scope(to: ["default"]) {
   groupId: ID! @idOf(type: "Group")
-  userId: String!
+  personId: String!
 }
 
 input RemoveGroupMemberInput @scope(to: ["default"]) {
   groupId: ID! @idOf(type: "Group")
-  userId: String!
+  personId: String!
 }
 
 input ArchiveGroupInput @scope(to: ["default"]) {

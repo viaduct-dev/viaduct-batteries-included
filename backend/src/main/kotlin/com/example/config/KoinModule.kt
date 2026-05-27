@@ -84,9 +84,11 @@ fun appModule(supabaseUrl: String, supabaseKey: String) = module {
     singleOf(::RevokeTenantAccessResolver)
     singleOf(::GrantGroupAccessResolver)
 
-    // Resolvers - SyncJob / ExternalIdentity (default tenant)
+    // Resolvers - SyncJob / Person / ExternalIdentity (default tenant)
     singleOf(::SyncJobQueryResolver)
     singleOf(::MyExternalIdentitiesResolver)
+    singleOf(::PersonsQueryResolver)
+    singleOf(::MergePersonsResolver)
 
     // Resolvers - GitHub tenant
     singleOf(::GitHubRepoAssetsQueryResolver)

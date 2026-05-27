@@ -63,11 +63,25 @@ enum SyncJobStatus @scope(to: ["default"]) {
 }
 
 """
-A ViaAccess user's mapped identity in an external provider.
+A person managed by ViaAccess. May or may not have a ViaAccess login.
+Persons can be added to groups and provisioned in external systems before ever signing in.
+"""
+type Person implements Node @scope(to: ["default"]) {
+  id: ID!
+  displayName: String
+  email: String
+  """Set once the person has signed in via ViaAccess auth."""
+  authUserId: String
+  createdAt: String!
+}
+
+"""
+A person's mapped identity in an external provider (GitHub, Asana, etc.).
+Multiple identities across different providers can belong to the same person.
 """
 type ExternalIdentity implements Node @scope(to: ["default"]) {
   id: ID!
-  userId: String!
+  personId: String!
   provider: String!
   externalUserId: String!
   externalUsername: String!
@@ -113,8 +127,11 @@ extend type Query @scope(to: ["default"]) {
   """Poll sync job status — used by clients and agents waiting on async operations."""
   syncJob(id: ID! @idOf(type: "SyncJob")): SyncJob @resolver
 
-  """Get external identities for the current user."""
+  """Get external identities for the current user's person."""
   myExternalIdentities: [ExternalIdentity!]! @resolver
+
+  """List all persons. Requires EDITOR on default tenant."""
+  persons: [Person!]! @resolver
 }
 
 extend type Mutation @scope(to: ["default"]) {
@@ -139,4 +156,12 @@ extend type Mutation @scope(to: ["default"]) {
   Requires EDITOR or higher on the asset's tenant.
   """
   setAssetRequestable(assetId: ID!, requestable: Boolean!): Boolean! @resolver
+
+  """
+  Merge two persons into one. All group memberships and external identities from
+  sourcePersonId are re-parented to targetPersonId; the source person is deleted.
+  Use when you discover that two imported persons represent the same human.
+  Requires EDITOR on the default tenant.
+  """
+  mergePersons(targetPersonId: String!, sourcePersonId: String!): Boolean! @resolver
 }
