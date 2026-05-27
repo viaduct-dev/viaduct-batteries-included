@@ -124,44 +124,56 @@ class Phase4AccessRequestTest : FunSpec({
                 }
             }
 
+            fun adminGet(path: String) = runBlocking {
+                adminHttp.get("$supabaseUrl$path") {
+                    header("Authorization", "Bearer $supabaseServiceKey")
+                    header("apikey", supabaseServiceKey)
+                }
+            }
+
+            fun lookupPersonId(authUserId: String): String {
+                val body = runBlocking {
+                    adminGet("/rest/v1/persons?auth_user_id=eq.$authUserId&select=id").bodyAsText()
+                }
+                val node = objectMapper.readTree(body)
+                check(node.size() > 0) { "No person found for auth_user_id=$authUserId (body=$body)" }
+                return node[0]["id"].asText()
+            }
+
             // Create editor user
             editorClient.auth.signUpWith(Email) { email = editorEmail; password = testPassword }
             editorClient.auth.signInWith(Email)  { email = editorEmail; password = testPassword }
             editorToken = editorClient.auth.currentAccessTokenOrNull()!!
             val editorUserId = editorClient.auth.currentUserOrNull()!!.id
+            val editorPersonId = lookupPersonId(editorUserId)
 
             // Create requester user
             requesterClient.auth.signUpWith(Email) { email = requesterEmail; password = testPassword }
             requesterClient.auth.signInWith(Email)  { email = requesterEmail; password = testPassword }
             requesterToken = requesterClient.auth.currentAccessTokenOrNull()!!
             val requesterUserId = requesterClient.auth.currentUserOrNull()!!.id
+            val requesterPersonId = lookupPersonId(requesterUserId)
 
             // Get default tenant_asset id
-            val taBody = adminHttp.get("$supabaseUrl/rest/v1/tenant_assets?tenant_name=eq.default&select=id") {
-                header("Authorization", "Bearer $supabaseServiceKey")
-                header("apikey", supabaseServiceKey)
-            }.bodyAsText()
+            val taBody = adminGet("/rest/v1/tenant_assets?tenant_name=eq.default&select=id").bodyAsText()
             val defaultTenantAssetId = objectMapper.readTree(taBody)[0]["id"].asText()
 
             // Grant EDITOR on default to editorUser (via group)
             val editorGroupId = objectMapper.readTree(
                 adminPost("/rest/v1/groups", """{"name":"editor-group-$ts","created_by":"$editorUserId"}""").bodyAsText()
             )[0]["id"].asText()
-            adminPost("/rest/v1/group_members", """{"group_id":"$editorGroupId","user_id":"$editorUserId"}""")
+            adminPost("/rest/v1/group_members", """{"group_id":"$editorGroupId","person_id":"$editorPersonId"}""")
             adminPost("/rest/v1/tenant_asset_policies", """{"tenant_asset_id":"$defaultTenantAssetId","group_id":"$editorGroupId","permission":"EDITOR"}""")
 
             // Grant REQUESTER on default to requesterUser (via group)
             val requesterGroupId = objectMapper.readTree(
                 adminPost("/rest/v1/groups", """{"name":"requester-group-$ts","created_by":"$editorUserId"}""").bodyAsText()
             )[0]["id"].asText()
-            adminPost("/rest/v1/group_members", """{"group_id":"$requesterGroupId","user_id":"$requesterUserId"}""")
+            adminPost("/rest/v1/group_members", """{"group_id":"$requesterGroupId","person_id":"$requesterPersonId"}""")
             adminPost("/rest/v1/tenant_asset_policies", """{"tenant_asset_id":"$defaultTenantAssetId","group_id":"$requesterGroupId","permission":"REQUESTER"}""")
 
             // Create a GitHub tenant_asset row (needed for assets.tenant_name FK)
-            val githubTaBody = adminHttp.get("$supabaseUrl/rest/v1/tenant_assets?tenant_name=eq.github&select=id") {
-                header("Authorization", "Bearer $supabaseServiceKey")
-                header("apikey", supabaseServiceKey)
-            }.bodyAsText()
+            val githubTaBody = adminGet("/rest/v1/tenant_assets?tenant_name=eq.github&select=id").bodyAsText()
             val githubTenantAssetId = objectMapper.readTree(githubTaBody).let {
                 if (it.size() > 0) it[0]["id"].asText()
                 else objectMapper.readTree(adminPost("/rest/v1/tenant_assets", """{"tenant_name":"github"}""").bodyAsText())[0]["id"].asText()
@@ -180,14 +192,14 @@ class Phase4AccessRequestTest : FunSpec({
             val editorGitHubGroupId = objectMapper.readTree(
                 adminPost("/rest/v1/groups", """{"name":"editor-github-group-$ts","created_by":"$editorUserId"}""").bodyAsText()
             )[0]["id"].asText()
-            adminPost("/rest/v1/group_members", """{"group_id":"$editorGitHubGroupId","user_id":"$editorUserId"}""")
+            adminPost("/rest/v1/group_members", """{"group_id":"$editorGitHubGroupId","person_id":"$editorPersonId"}""")
             adminPost("/rest/v1/tenant_asset_policies", """{"tenant_asset_id":"$githubTenantAssetId","group_id":"$editorGitHubGroupId","permission":"EDITOR"}""")
 
             // Create a group for the requester to request access with
             testGroupId = objectMapper.readTree(
                 adminPost("/rest/v1/groups", """{"name":"access-test-group-$ts","created_by":"$editorUserId"}""").bodyAsText()
             )[0]["id"].asText()
-            adminPost("/rest/v1/group_members", """{"group_id":"$testGroupId","user_id":"$requesterUserId"}""")
+            adminPost("/rest/v1/group_members", """{"group_id":"$testGroupId","person_id":"$requesterPersonId"}""")
 
             println("Phase4 setup: editor=$editorEmail requester=$requesterEmail asset=$testAssetId group=$testGroupId")
         }

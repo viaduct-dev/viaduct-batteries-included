@@ -18,24 +18,21 @@ class ArchiveGroupResolver(
 
         val groupId = ctx.arguments.input.groupId.internalID
 
-        // Mark as DELETING before kicking off reconcile jobs
-        groupService.updateGroupStatus(ctx.authenticatedClient, groupId, "DELETING")
+        // Mark as DELETING and kick off reconcile jobs. The group stays DELETING until
+        // all reconcile jobs complete and the sync worker advances it to ARCHIVED.
+        val groupEntity = groupService.updateGroupStatus(ctx.authenticatedClient, groupId, "DELETING")
 
-        // Enqueue reconcile on all assets that had policies from this group so external
-        // services converge (membership removed) before we finalize ARCHIVED.
         val affectedAssets = authService.getAssetsAffectedByGroup(ctx.authenticatedClient, groupId)
         for (asset in affectedAssets) {
             ctx.authenticatedClient.createSyncJob(asset.assetId, asset.assetType, asset.tenantName, "RECONCILE_ASSET")
         }
-
-        val groupEntity = groupService.updateGroupStatus(ctx.authenticatedClient, groupId, "ARCHIVED")
 
         return Group.Builder(ctx)
             .id(ctx.globalIDFor(Group.Reflection, groupEntity.id))
             .name(groupEntity.name)
             .description(groupEntity.description)
             .createdBy(groupEntity.created_by)
-            .status(GroupStatus.ARCHIVED)
+            .status(GroupStatus.DELETING)
             .createdAt(groupEntity.created_at)
             .updatedAt(groupEntity.updated_at)
             .build()

@@ -26,9 +26,15 @@ class ApproveAccessRequestResolver(
         val asset = ctx.authenticatedClient.getAssetById(request.asset_id)
             ?: error("Asset not found: ${request.asset_id}")
 
-        // Create or update the live policy (idempotent — safe to retry on partial failure).
-        // If this succeeds but the status update below fails, re-approving will be a no-op
-        // on the policy row and will just update the request status.
+        // CAS first — guards against double-approve. Only write the live policy if we win.
+        val updated = ctx.authenticatedClient.transitionAccessRequestFromPending(
+            id = requestId,
+            status = "APPROVED",
+            reviewedBy = ctx.userId,
+            reviewerNote = note,
+        ) ?: error("Access request was already processed by another reviewer")
+
+        // Policy upsert is idempotent — safe to retry if enqueue or later steps fail.
         when (asset.asset_type) {
             "GITHUB_REPO"     -> ctx.authenticatedClient.upsertGitHubRepoPolicy(request.asset_id, request.group_id, request.requested_permission)
             "GITHUB_TEAM"     -> ctx.authenticatedClient.upsertGitHubTeamPolicy(request.asset_id, request.group_id, request.requested_permission)
@@ -37,15 +43,7 @@ class ApproveAccessRequestResolver(
             else -> error("Unsupported asset type: ${asset.asset_type}")
         }
 
-        // Enqueue reconcile
         ctx.authenticatedClient.createSyncJob(request.asset_id, asset.asset_type, asset.tenant_name, "RECONCILE_ASSET")
-
-        val updated = ctx.authenticatedClient.transitionAccessRequestFromPending(
-            id = requestId,
-            status = "APPROVED",
-            reviewedBy = ctx.userId,
-            reviewerNote = note,
-        ) ?: error("Access request was already processed by another reviewer")
 
         ctx.authenticatedClient.insertAuditEvent(
             actorId = ctx.userId,

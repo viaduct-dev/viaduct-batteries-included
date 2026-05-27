@@ -473,7 +473,10 @@ class AuthenticatedSupabaseClient(
         val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/persons") {
             header("Authorization", "Bearer $accessToken")
             header("apikey", supabaseKey)
+            // on_conflict=auth_user_id lets PostgREST upsert on the unique auth_user_id column,
+            // so inviteAndLinkUser doesn't race with the auto-create trigger.
             header("Prefer", "return=representation,resolution=merge-duplicates")
+            parameter("on_conflict", "auth_user_id")
             contentType(ContentType.Application.Json)
             setBody(fields)
         }
@@ -1096,11 +1099,27 @@ class AuthenticatedSupabaseClient(
         val response: HttpResponse = httpClient.post("$supabaseUrl/rest/v1/sync_jobs") {
             header("Authorization", "Bearer $accessToken")
             header("apikey", supabaseKey)
-            header("Prefer", "return=representation")
+            // resolution=ignore-duplicates: partial unique index on active RECONCILE_ASSET
+            // jobs causes a 409 on plain INSERT; this turns it into a no-op and returns empty.
+            header("Prefer", "return=representation,resolution=ignore-duplicates")
             contentType(ContentType.Application.Json)
             setBody("""{"asset_id":"$assetId","asset_type":"$assetType","tenant_name":"$tenantName","action":"$action"}""")
         }
-        return json.decodeFromString<List<com.example.services.SyncJobEntity>>(response.bodyAsText()).first()
+        val body = response.bodyAsText()
+        val list = json.decodeFromString<List<com.example.services.SyncJobEntity>>(body)
+        if (list.isNotEmpty()) return list.first()
+        // Conflict: an active RECONCILE_ASSET job already exists — return it
+        val existing: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/sync_jobs") {
+            header("Authorization", "Bearer $accessToken")
+            header("apikey", supabaseKey)
+            parameter("select", "*")
+            parameter("asset_id", "eq.$assetId")
+            parameter("action", "eq.$action")
+            parameter("status", "in.(PENDING,RUNNING)")
+            parameter("order", "created_at.desc")
+            parameter("limit", "1")
+        }
+        return json.decodeFromString<List<com.example.services.SyncJobEntity>>(existing.bodyAsText()).first()
     }
 
     suspend fun updateSyncJob(

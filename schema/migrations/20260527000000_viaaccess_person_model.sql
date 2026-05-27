@@ -330,7 +330,13 @@ BEGIN
     WHERE provider = v_provider AND external_user_id = v_external_user_id;
 
     IF v_person_id IS NOT NULL THEN
-        -- Person was pre-provisioned — link their auth account now that they've signed in
+        -- Person was pre-provisioned — link their auth account now that they've signed in.
+        -- trg_create_person_for_new_user may have already created a blank person for this
+        -- auth_user_id. Delete it first (it has no memberships or identities yet) so the
+        -- UNIQUE constraint on persons.auth_user_id doesn't block the UPDATE below.
+        DELETE FROM public.persons
+        WHERE auth_user_id = NEW.user_id AND id <> v_person_id;
+
         UPDATE public.persons SET auth_user_id = NEW.user_id WHERE id = v_person_id;
         -- Update username in case it changed
         UPDATE public.external_identities
