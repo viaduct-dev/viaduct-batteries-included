@@ -90,6 +90,9 @@ class Phase4AccessRequestTest : FunSpec({
     var testAssetId: String = ""
     var testGroupId: String = ""
 
+    fun globalId(type: String, uuid: String): String =
+        java.util.Base64.getEncoder().encodeToString("$type:$uuid".toByteArray())
+
     fun testWithApp(block: suspend ApplicationTestBuilder.() -> Unit) {
         testApplication {
             application {
@@ -114,29 +117,53 @@ class Phase4AccessRequestTest : FunSpec({
         runBlocking {
             val adminHttp = HttpClient(CIO) { install(HttpTimeout) { requestTimeoutMillis = 30_000 } }
 
-            fun adminPost(path: String, body: String) = runBlocking {
+            suspend fun adminPost(path: String, body: String): io.ktor.client.statement.HttpResponse =
                 adminHttp.post("$supabaseUrl$path") {
                     header("Authorization", "Bearer $supabaseServiceKey")
                     header("apikey", supabaseServiceKey)
                     header("Prefer", "return=representation")
                     contentType(ContentType.Application.Json)
                     setBody(body)
+                }.also { resp ->
+                    check(resp.status.value in 200..299) {
+                        "adminPost $path failed ${resp.status}: ${resp.bodyAsText()}"
+                    }
+                }
+
+            // group_members: the add_owner_to_group trigger fires on groups INSERT and
+            // pre-inserts the creator, so an explicit insert for the creator hits a
+            // (group_id, person_id) unique constraint.  Use ignore-duplicates so the
+            // trigger-inserted row is treated as success.
+            suspend fun adminAddMember(groupId: String, personId: String) {
+                adminHttp.post("$supabaseUrl/rest/v1/group_members") {
+                    header("Authorization", "Bearer $supabaseServiceKey")
+                    header("apikey", supabaseServiceKey)
+                    header("Prefer", "return=representation,resolution=ignore-duplicates")
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"group_id":"$groupId","person_id":"$personId"}""")
+                }.also { resp ->
+                    check(resp.status.value in 200..299 || resp.status.value == 409) {
+                        "adminAddMember failed ${resp.status}: ${resp.bodyAsText()}"
+                    }
                 }
             }
 
-            fun adminGet(path: String) = runBlocking {
+            suspend fun adminGet(path: String): io.ktor.client.statement.HttpResponse =
                 adminHttp.get("$supabaseUrl$path") {
                     header("Authorization", "Bearer $supabaseServiceKey")
                     header("apikey", supabaseServiceKey)
+                }.also { resp ->
+                    check(resp.status.value in 200..299) {
+                        "adminGet $path failed ${resp.status}: ${resp.bodyAsText()}"
+                    }
                 }
-            }
 
-            fun lookupPersonId(authUserId: String): String {
-                val body = runBlocking {
-                    adminGet("/rest/v1/persons?auth_user_id=eq.$authUserId&select=id").bodyAsText()
-                }
+            suspend fun lookupPersonId(authUserId: String): String {
+                val body = adminGet("/rest/v1/persons?auth_user_id=eq.$authUserId&select=id").bodyAsText()
                 val node = objectMapper.readTree(body)
-                check(node.size() > 0) { "No person found for auth_user_id=$authUserId (body=$body)" }
+                check(node.isArray && node.size() > 0) {
+                    "No person row found for auth_user_id=$authUserId — run `supabase db reset` to apply the person-model migration. body=$body"
+                }
                 return node[0]["id"].asText()
             }
 
@@ -162,14 +189,14 @@ class Phase4AccessRequestTest : FunSpec({
             val editorGroupId = objectMapper.readTree(
                 adminPost("/rest/v1/groups", """{"name":"editor-group-$ts","created_by":"$editorUserId"}""").bodyAsText()
             )[0]["id"].asText()
-            adminPost("/rest/v1/group_members", """{"group_id":"$editorGroupId","person_id":"$editorPersonId"}""")
+            adminAddMember(editorGroupId, editorPersonId)
             adminPost("/rest/v1/tenant_asset_policies", """{"tenant_asset_id":"$defaultTenantAssetId","group_id":"$editorGroupId","permission":"EDITOR"}""")
 
             // Grant REQUESTER on default to requesterUser (via group)
             val requesterGroupId = objectMapper.readTree(
                 adminPost("/rest/v1/groups", """{"name":"requester-group-$ts","created_by":"$editorUserId"}""").bodyAsText()
             )[0]["id"].asText()
-            adminPost("/rest/v1/group_members", """{"group_id":"$requesterGroupId","person_id":"$requesterPersonId"}""")
+            adminAddMember(requesterGroupId, requesterPersonId)
             adminPost("/rest/v1/tenant_asset_policies", """{"tenant_asset_id":"$defaultTenantAssetId","group_id":"$requesterGroupId","permission":"REQUESTER"}""")
 
             // Create a GitHub tenant_asset row (needed for assets.tenant_name FK)
@@ -192,14 +219,21 @@ class Phase4AccessRequestTest : FunSpec({
             val editorGitHubGroupId = objectMapper.readTree(
                 adminPost("/rest/v1/groups", """{"name":"editor-github-group-$ts","created_by":"$editorUserId"}""").bodyAsText()
             )[0]["id"].asText()
-            adminPost("/rest/v1/group_members", """{"group_id":"$editorGitHubGroupId","person_id":"$editorPersonId"}""")
+            adminAddMember(editorGitHubGroupId, editorPersonId)
             adminPost("/rest/v1/tenant_asset_policies", """{"tenant_asset_id":"$githubTenantAssetId","group_id":"$editorGitHubGroupId","permission":"EDITOR"}""")
+
+            // Grant REQUESTER on github tenant to requesterUser (requestGroupAccess checks asset.tenant_name)
+            val githubRequesterGroupId = objectMapper.readTree(
+                adminPost("/rest/v1/groups", """{"name":"requester-github-group-$ts","created_by":"$editorUserId"}""").bodyAsText()
+            )[0]["id"].asText()
+            adminAddMember(githubRequesterGroupId, requesterPersonId)
+            adminPost("/rest/v1/tenant_asset_policies", """{"tenant_asset_id":"$githubTenantAssetId","group_id":"$githubRequesterGroupId","permission":"REQUESTER"}""")
 
             // Create a group for the requester to request access with
             testGroupId = objectMapper.readTree(
                 adminPost("/rest/v1/groups", """{"name":"access-test-group-$ts","created_by":"$editorUserId"}""").bodyAsText()
             )[0]["id"].asText()
-            adminPost("/rest/v1/group_members", """{"group_id":"$testGroupId","person_id":"$requesterPersonId"}""")
+            adminAddMember(testGroupId, requesterPersonId)
 
             println("Phase4 setup: editor=$editorEmail requester=$requesterEmail asset=$testAssetId group=$testGroupId")
         }
@@ -258,7 +292,7 @@ class Phase4AccessRequestTest : FunSpec({
                 setBody(gql(requesterToken,
                     """mutation { requestGroupAccess(input: {
                         assetId: "$testAssetId",
-                        groupId: "$testGroupId",
+                        groupId: "${globalId("Group", testGroupId)}",
                         requestedPermission: "READ"
                     }) { id status requestedPermission requestedBy } }"""))
             }
@@ -321,7 +355,7 @@ class Phase4AccessRequestTest : FunSpec({
         }
     }
 
-    test("approveAccessRequest: re-approving APPROVED request returns error") {
+    test("approveAccessRequest: re-approving APPROVED request succeeds (idempotent replay)") {
         accessRequestId shouldNotBe ""
         testWithApp {
             val resp = client.post("/graphql") {
@@ -332,7 +366,8 @@ class Phase4AccessRequestTest : FunSpec({
             }
             resp.status shouldBe HttpStatusCode.OK
             val body = resp.bodyAsText()
-            body shouldContain "errors"
+            body shouldContainJsonKey "data.approveAccessRequest.id"
+            body shouldContain "APPROVED"
         }
     }
 
@@ -348,7 +383,7 @@ class Phase4AccessRequestTest : FunSpec({
                 setBody(gql(requesterToken,
                     """mutation { requestGroupAccess(input: {
                         assetId: "$testAssetId",
-                        groupId: "$testGroupId",
+                        groupId: "${globalId("Group", testGroupId)}",
                         requestedPermission: "WRITE"
                     }) { id status } }"""))
             }
@@ -390,7 +425,7 @@ class Phase4AccessRequestTest : FunSpec({
                 setBody(gql(requesterToken,
                     """mutation { requestGroupAccess(input: {
                         assetId: "$testAssetId",
-                        groupId: "$testGroupId",
+                        groupId: "${globalId("Group", testGroupId)}",
                         requestedPermission: "READ"
                     }) { id status } }"""))
             }

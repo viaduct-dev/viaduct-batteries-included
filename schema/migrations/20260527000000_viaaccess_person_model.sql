@@ -97,6 +97,17 @@ ALTER TABLE public.group_members
 ALTER TABLE public.group_members
     ADD CONSTRAINT group_members_group_id_person_id_key UNIQUE (group_id, person_id);
 
+-- Drop all policies that reference user_id before dropping the column, regardless of
+-- which prior migration created them.
+DROP POLICY IF EXISTS "Admins can add group members" ON public.group_members;
+DROP POLICY IF EXISTS "Members can remove themselves or admins can remove anyone" ON public.group_members;
+DROP POLICY IF EXISTS "Default tenant editors can add group members" ON public.group_members;
+DROP POLICY IF EXISTS "Default tenant editors or self can remove group members" ON public.group_members;
+DROP POLICY IF EXISTS "Users and tenant editors can view group memberships" ON public.group_members;
+DROP POLICY IF EXISTS "Users can view group memberships they are part of" ON public.group_members;
+DROP POLICY IF EXISTS "Group members can view memberships" ON public.group_members;
+DROP POLICY IF EXISTS "Authenticated users can view their group memberships" ON public.group_members;
+
 ALTER TABLE public.group_members
     DROP COLUMN IF EXISTS user_id;
 
@@ -137,18 +148,15 @@ ALTER TABLE public.external_identities
 ALTER TABLE public.external_identities
     ADD CONSTRAINT external_identities_person_id_provider_key UNIQUE (person_id, provider);
 
--- Drop user_id column
+-- Drop policies that reference user_id before dropping the column
+DROP POLICY IF EXISTS "Users and tenant editors can view external identities" ON public.external_identities;
+
 ALTER TABLE public.external_identities
     DROP COLUMN IF EXISTS user_id;
 
 -- ─────────────────────────────────────────────────────────────
 -- 5. Update RLS on group_members to use person_id
 -- ─────────────────────────────────────────────────────────────
-
-DROP POLICY IF EXISTS "Admins can add group members" ON public.group_members;
-DROP POLICY IF EXISTS "Members can remove themselves or admins can remove anyone" ON public.group_members;
-DROP POLICY IF EXISTS "Group members can view memberships" ON public.group_members;
-DROP POLICY IF EXISTS "Authenticated users can view their group memberships" ON public.group_members;
 
 CREATE POLICY "Editors can add group members"
     ON public.group_members FOR INSERT
@@ -399,3 +407,19 @@ DROP TRIGGER IF EXISTS trg_create_person_for_new_user ON auth.users;
 CREATE TRIGGER trg_create_person_for_new_user
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.create_person_for_new_user();
+
+-- ─────────────────────────────────────────────────────────────
+-- 12. Fix assets UPDATE policy to allow tenant EDITOR
+-- ─────────────────────────────────────────────────────────────
+-- The original policy only allowed admins to update assets.
+-- setAssetRequestable requires UPDATE, and tenant EDITORs must be
+-- able to control the requestable flag on their own tenant's assets.
+
+DROP POLICY IF EXISTS "Admins can update or delete assets" ON public.assets;
+
+CREATE POLICY "Tenant editors can update assets"
+    ON public.assets FOR UPDATE
+    USING (
+        public.is_admin()
+        OR public.has_tenant_permission(tenant_name, 'EDITOR')
+    );

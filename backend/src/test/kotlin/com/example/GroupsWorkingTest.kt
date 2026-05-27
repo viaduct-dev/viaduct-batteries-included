@@ -4,6 +4,7 @@ import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -11,6 +12,9 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -44,7 +48,53 @@ class GroupsWorkingTest : FunSpec({
         token shouldNotBe null
         println("✓ User signed in, got token")
 
-        // 2. Create a group via GraphQL
+        val userId = client.auth.currentUserOrNull()?.id
+        userId shouldNotBe null
+
+        // Grant EDITOR on default tenant so createGroup passes RLS.
+        // createGroup requires has_tenant_permission('default', 'EDITOR') which joins through persons.
+        if (supabaseServiceRoleKey != null) {
+            val om = jacksonObjectMapper()
+            val adminHttp = HttpClient(CIO)
+            fun adminHeaders(builder: HttpRequestBuilder) {
+                builder.header("Authorization", "Bearer $supabaseServiceRoleKey")
+                builder.header("apikey", supabaseServiceRoleKey)
+                builder.header("Prefer", "return=representation")
+                builder.contentType(ContentType.Application.Json)
+            }
+            // Look up the person created by the auto-trigger
+            val personBody = adminHttp.get("$supabaseUrl/rest/v1/persons?auth_user_id=eq.$userId&select=id") {
+                header("Authorization", "Bearer $supabaseServiceRoleKey")
+                header("apikey", supabaseServiceRoleKey)
+            }.bodyAsText()
+            val personId = om.readTree(personBody)[0]["id"].asText()
+
+            // Create a bootstrap group owned by this user, then grant EDITOR
+            val groupId = om.readTree(adminHttp.post("$supabaseUrl/rest/v1/groups") {
+                adminHeaders(this)
+                setBody("""{"name":"bootstrap-editor-group","created_by":"$userId"}""")
+            }.bodyAsText())[0]["id"].asText()
+
+            adminHttp.post("$supabaseUrl/rest/v1/group_members") {
+                header("Authorization", "Bearer $supabaseServiceRoleKey")
+                header("apikey", supabaseServiceRoleKey)
+                header("Prefer", "return=representation,resolution=ignore-duplicates")
+                contentType(ContentType.Application.Json)
+                setBody("""{"group_id":"$groupId","person_id":"$personId"}""")
+            }
+            val taId = om.readTree(adminHttp.get("$supabaseUrl/rest/v1/tenant_assets?tenant_name=eq.default&select=id") {
+                header("Authorization", "Bearer $supabaseServiceRoleKey")
+                header("apikey", supabaseServiceRoleKey)
+            }.bodyAsText())[0]["id"].asText()
+
+            adminHttp.post("$supabaseUrl/rest/v1/tenant_asset_policies") {
+                adminHeaders(this)
+                setBody("""{"tenant_asset_id":"$taId","group_id":"$groupId","permission":"EDITOR"}""")
+            }
+            println("✓ Granted TenantAsset(default): EDITOR via group $groupId")
+        }
+
+        // 2. Create a group via REST client
         val httpClient = HttpClient(CIO) {
             install(HttpTimeout) {
                 requestTimeoutMillis = 60_000
@@ -56,8 +106,6 @@ class GroupsWorkingTest : FunSpec({
         val authClient = supabaseService.createAuthenticatedClient(token!!, httpClient)
 
         val groupName = "Test Group ${System.currentTimeMillis()}"
-        val userId = client.auth.currentUserOrNull()?.id
-        userId shouldNotBe null
 
         val createdGroup = authClient.createGroup(
             name = groupName,

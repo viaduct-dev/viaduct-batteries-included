@@ -119,48 +119,49 @@ class GraphQLAuthenticationIntegrationTest : FunSpec({
             // We do this by creating a group, adding the user to it, and granting EDITOR on the default tenant asset.
             val userId = supabaseClient.auth.currentUserOrNull()?.id
             if (userId != null) {
-                try {
-                    val adminHttp = io.ktor.client.HttpClient(io.ktor.client.engine.cio.CIO)
-                    val adminHeaders = fun io.ktor.client.request.HttpRequestBuilder.() {
-                        header("Authorization", "Bearer $supabaseServiceKey")
-                        header("apikey", supabaseServiceKey)
-                        header("Prefer", "return=representation")
-                        contentType(ContentType.Application.Json)
-                    }
-
-                    // Create a bootstrap group for this test user
-                    val groupResp = adminHttp.post("$supabaseUrl/rest/v1/groups") {
-                        adminHeaders()
-                        setBody("""{"name":"test-editor-group","created_by":"$userId"}""")
-                    }
-                    val groupBody = groupResp.bodyAsText()
-                    val groupId = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
-                        .readTree(groupBody)[0]["id"].asText()
-
-                    // Add user to group
-                    adminHttp.post("$supabaseUrl/rest/v1/group_members") {
-                        adminHeaders()
-                        setBody("""{"group_id":"$groupId","user_id":"$userId"}""")
-                    }
-
-                    // Look up the default tenant_asset id
-                    val taResp = adminHttp.get("$supabaseUrl/rest/v1/tenant_assets?tenant_name=eq.default&select=id") {
-                        header("Authorization", "Bearer $supabaseServiceKey")
-                        header("apikey", supabaseServiceKey)
-                    }
-                    val tenantAssetId = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
-                        .readTree(taResp.bodyAsText())[0]["id"].asText()
-
-                    // Grant EDITOR on default tenant to the group
-                    adminHttp.post("$supabaseUrl/rest/v1/tenant_asset_policies") {
-                        adminHeaders()
-                        setBody("""{"tenant_asset_id":"$tenantAssetId","group_id":"$groupId","permission":"EDITOR"}""")
-                    }
-
-                    println("Test user granted TenantAsset(default): EDITOR via group $groupId")
-                } catch (e: Exception) {
-                    println("Warning: could not grant test user EDITOR: ${e.message}")
+                val adminHttp = io.ktor.client.HttpClient(io.ktor.client.engine.cio.CIO)
+                val om = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
+                val adminHeaders = fun io.ktor.client.request.HttpRequestBuilder.() {
+                    header("Authorization", "Bearer $supabaseServiceKey")
+                    header("apikey", supabaseServiceKey)
+                    header("Prefer", "return=representation")
+                    contentType(ContentType.Application.Json)
                 }
+
+                // Resolve person_id for this auth user (auto-created by trigger on sign-up)
+                val personResp = adminHttp.get("$supabaseUrl/rest/v1/persons?auth_user_id=eq.$userId&select=id") {
+                    header("Authorization", "Bearer $supabaseServiceKey")
+                    header("apikey", supabaseServiceKey)
+                }
+                val personId = om.readTree(personResp.bodyAsText())[0]["id"].asText()
+
+                // Create a bootstrap group for this test user
+                val groupResp = adminHttp.post("$supabaseUrl/rest/v1/groups") {
+                    adminHeaders()
+                    setBody("""{"name":"test-editor-group","created_by":"$userId"}""")
+                }
+                val groupId = om.readTree(groupResp.bodyAsText())[0]["id"].asText()
+
+                // Add person to group
+                adminHttp.post("$supabaseUrl/rest/v1/group_members") {
+                    adminHeaders()
+                    setBody("""{"group_id":"$groupId","person_id":"$personId"}""")
+                }
+
+                // Look up the default tenant_asset id
+                val taResp = adminHttp.get("$supabaseUrl/rest/v1/tenant_assets?tenant_name=eq.default&select=id") {
+                    header("Authorization", "Bearer $supabaseServiceKey")
+                    header("apikey", supabaseServiceKey)
+                }
+                val tenantAssetId = om.readTree(taResp.bodyAsText())[0]["id"].asText()
+
+                // Grant EDITOR on default tenant to the group
+                adminHttp.post("$supabaseUrl/rest/v1/tenant_asset_policies") {
+                    adminHeaders()
+                    setBody("""{"tenant_asset_id":"$tenantAssetId","group_id":"$groupId","permission":"EDITOR"}""")
+                }
+
+                println("Test user granted TenantAsset(default): EDITOR via group $groupId")
             }
         }
     }

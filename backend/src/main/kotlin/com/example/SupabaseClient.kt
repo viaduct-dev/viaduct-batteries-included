@@ -817,15 +817,20 @@ class AuthenticatedSupabaseClient(
         // Check for existing policy first; if present, update permission in-place.
         val existing = getGitHubRepoPoliciesByAsset(assetId).firstOrNull { it.group_id == groupId }
         if (existing != null) {
-            val response: HttpResponse = httpClient.patch("$supabaseUrl/rest/v1/github_repo_policies") {
+            val body = httpClient.patch("$supabaseUrl/rest/v1/github_repo_policies") {
                 header("Authorization", "Bearer $accessToken")
                 header("apikey", supabaseKey)
                 header("Prefer", "return=representation")
                 parameter("id", "eq.${existing.id}")
                 contentType(ContentType.Application.Json)
                 setBody("""{"permission":"$permission"}""")
-            }
-            return json.decodeFromString<List<com.example.services.GitHubRepoPolicyEntity>>(response.bodyAsText()).first()
+            }.bodyAsText()
+            // PATCH with return=representation may return empty array when RLS blocks the
+            // SELECT on the updated row (e.g. group membership check fails for service tokens).
+            // Fall back to an explicit re-fetch in that case.
+            return json.decodeFromString<List<com.example.services.GitHubRepoPolicyEntity>>(body)
+                .firstOrNull()
+                ?: getGitHubRepoPoliciesByAsset(assetId).first { it.group_id == groupId }
         }
         return createGitHubRepoPolicy(assetId, groupId, permission)
     }
@@ -1103,13 +1108,16 @@ class AuthenticatedSupabaseClient(
             contentType(ContentType.Application.Json)
             setBody("""{"asset_id":"$assetId","asset_type":"$assetType","tenant_name":"$tenantName","action":"$action"}""")
         }
-        // PostgREST returns 201 on successful insert, 409 when the partial unique index on
-        // active RECONCILE_ASSET jobs fires.  Check status before decoding to avoid
-        // deserializing an error body as a SyncJobEntity list.
-        if (response.status.value == 201) {
+        val status = response.status.value
+        if (status == 201) {
             return json.decodeFromString<List<com.example.services.SyncJobEntity>>(response.bodyAsText()).first()
         }
-        // Conflict: return the existing active job
+        // 409 = partial unique index fired (active RECONCILE_ASSET already exists for this asset).
+        // Return the existing job rather than treating it as an error.
+        // Any other non-2xx is a real failure — surface it instead of masking it.
+        check(status == 409) {
+            "createSyncJob failed with HTTP $status: ${response.bodyAsText()}"
+        }
         val existing: HttpResponse = httpClient.get("$supabaseUrl/rest/v1/sync_jobs") {
             header("Authorization", "Bearer $accessToken")
             header("apikey", supabaseKey)
@@ -1120,7 +1128,9 @@ class AuthenticatedSupabaseClient(
             parameter("order", "created_at.desc")
             parameter("limit", "1")
         }
-        return json.decodeFromString<List<com.example.services.SyncJobEntity>>(existing.bodyAsText()).first()
+        return json.decodeFromString<List<com.example.services.SyncJobEntity>>(existing.bodyAsText())
+            .firstOrNull()
+            ?: error("createSyncJob: 409 conflict but no active RECONCILE_ASSET job found for assetId=$assetId")
     }
 
     suspend fun updateSyncJob(
