@@ -464,7 +464,7 @@ export const YourResourceManager = () => {
 
 ```bash
 # Apply migrations
-supabase db reset
+.mise/scripts/supabase.sh db reset --workdir "$(pwd)"
 
 # Test RLS policies manually
 psql -h localhost -p 54322 -U postgres -d postgres

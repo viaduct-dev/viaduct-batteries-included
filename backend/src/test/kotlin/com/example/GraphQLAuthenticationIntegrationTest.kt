@@ -28,8 +28,7 @@ import viaduct.service.api.spi.SharedTenantModuleInjectorFactory
 /**
  * Integration test for GraphQL authentication with Supabase.
  *
- * This test requires a running local Supabase instance.
- * Run `supabase start` before executing this test.
+ * Gradle starts the isolated local Supabase instance before this test runs.
  */
 class GraphQLAuthenticationIntegrationTest : FunSpec({
     val objectMapper = jacksonObjectMapper()

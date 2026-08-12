@@ -71,14 +71,15 @@ application {
     mainClass.set("com.example.CracMainKt")
 }
 
-// Start local Supabase (Docker containers) if not already running.
-// Migrations from supabase/migrations/ (symlink to schema/migrations/) are
-// applied automatically on first start.
+// Start the isolated local Supabase project with the same portable Podman
+// setup used by mise. Startup failures are fatal so tests cannot accidentally
+// run against another checkout's database.
+val projectRoot = rootProject.projectDir.parentFile
+val startSupabaseScript = projectRoot.resolve(".mise/scripts/start-supabase.sh")
+
 val startSupabase by tasks.registering(Exec::class) {
-    workingDir = rootProject.projectDir.parentFile // project root (parent of backend/)
-    commandLine("supabase", "start")
-    // supabase start is idempotent — returns quickly if already running
-    isIgnoreExitValue = true
+    workingDir = projectRoot
+    commandLine("bash", startSupabaseScript.absolutePath)
 }
 
 tasks.withType<Test> {
