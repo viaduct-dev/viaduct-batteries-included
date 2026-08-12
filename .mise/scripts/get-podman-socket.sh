@@ -1,58 +1,91 @@
 #!/usr/bin/env bash
-# Get Podman socket path for mise environment variable
-# This script outputs only the socket path (no export statement)
+# Print the Docker-compatible Podman socket used by the Supabase CLI.
 
-set -e
+set -u
 
-# Function to detect the active Podman machine
-detect_podman_machine() {
-    local active_machine=$(podman machine list --format "{{.Name}}" --noheading 2>/dev/null | grep -v "^$" | head -1)
-
-    if [ -z "$active_machine" ]; then
-        active_machine=$(podman system connection list --format "{{.Name}}" 2>/dev/null | grep "default" | head -1 | sed 's/\*//g' | xargs)
-    fi
-
-    if [ -z "$active_machine" ]; then
-        active_machine="podman-machine-default"
-    fi
-
-    echo "$active_machine"
+as_unix_uri() {
+    case "${1:-}" in
+        unix://*)
+            printf '%s\n' "$1"
+            ;;
+        /*)
+            printf 'unix://%s\n' "$1"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
 }
 
-# Function to extract socket path from machine config
-get_socket_path() {
-    local machine_name="$1"
-    local socket_path=""
+configured_connection_uri() {
+    local uri
 
-    # Try to get socket from machine inspect
-    socket_path=$(podman machine inspect "$machine_name" 2>/dev/null | grep -o '/tmp/podman/[^"]*api\.sock' | head -1)
-
-    if [ -z "$socket_path" ]; then
-        socket_path=$(podman machine inspect "$machine_name" 2>/dev/null | grep -o '/[^"]*\.sock' | grep -i podman | grep -i api | head -1)
+    # CONTAINER_HOST is Podman's explicit connection override.
+    if uri="$(as_unix_uri "${CONTAINER_HOST:-}")"; then
+        printf '%s\n' "$uri"
+        return 0
     fi
 
-    if [ -z "$socket_path" ]; then
-        # Check common socket locations directly
-        if [ -S "/tmp/podman/${machine_name}-api.sock" ]; then
-            socket_path="/tmp/podman/${machine_name}-api.sock"
-        elif [ -S "/tmp/podman/podman-machine-default-api.sock" ]; then
-            socket_path="/tmp/podman/podman-machine-default-api.sock"
-        elif [ -S "/run/user/$(id -u)/podman/podman.sock" ]; then
-            socket_path="/run/user/$(id -u)/podman/podman.sock"
-        elif [ -S "/var/run/docker.sock" ]; then
-            socket_path="/var/run/docker.sock"
-        fi
-    fi
-
-    echo "$socket_path"
+    # Prefer the URI Podman has marked as its default when it is a local socket.
+    uri="$(
+        podman system connection list \
+            --format '{{if .Default}}{{.URI}}{{end}}' 2>/dev/null |
+            sed -n '/./{p;q;}'
+    )"
+    as_unix_uri "$uri"
 }
 
-# Main execution
-MACHINE_NAME=$(detect_podman_machine)
-SOCKET_PATH=$(get_socket_path "$MACHINE_NAME")
+native_linux_socket_uri() {
+    local is_remote socket
 
-if [ -z "$SOCKET_PATH" ]; then
-    echo "unix:///tmp/podman/podman-machine-default-api.sock" # Fallback default
-else
-    echo "unix://${SOCKET_PATH}"
+    # On native Linux this asks Podman for the actual configured service path.
+    # Remote clients report a path on the server, which is not a local socket.
+    is_remote="$(podman info --format '{{.Host.ServiceIsRemote}}' 2>/dev/null)"
+    [ "$is_remote" = "false" ] || return 1
+    socket="$(podman info --format '{{.Host.RemoteSocket.Path}}' 2>/dev/null)"
+    as_unix_uri "$socket"
+}
+
+if CONNECTION_URI="$(configured_connection_uri)"; then
+    printf '%s\n' "$CONNECTION_URI"
+    exit 0
 fi
+
+case "$(uname -s)" in
+    Linux)
+        if CONNECTION_URI="$(native_linux_socket_uri)"; then
+            printf '%s\n' "$CONNECTION_URI"
+            exit 0
+        fi
+
+        RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+        if [ ! -d "$RUNTIME_DIR" ] || [ ! -w "$RUNTIME_DIR" ]; then
+            RUNTIME_DIR="${TMPDIR:-/tmp}/batteries-included-podman-$(id -u)"
+        fi
+
+        if [ "$(id -u)" -eq 0 ] &&
+            [ "$(podman info --format '{{.Host.Security.Rootless}}' 2>/dev/null)" = "false" ]; then
+            echo "unix:///run/podman/podman.sock"
+        else
+            echo "unix://$RUNTIME_DIR/podman/podman.sock"
+        fi
+        ;;
+    Darwin)
+        MACHINE_NAME="$(
+            podman machine list --format "{{.Name}}" --noheading 2>/dev/null |
+                grep -v "^$" |
+                head -1
+        )"
+        MACHINE_NAME="${MACHINE_NAME%\*}"
+        MACHINE_NAME="${MACHINE_NAME:-podman-machine-default}"
+        SOCKET_PATH="$(
+            podman machine inspect "$MACHINE_NAME" \
+                --format '{{.ConnectionInfo.PodmanSocket.Path}}' 2>/dev/null
+        )"
+        SOCKET_PATH="${SOCKET_PATH:-/tmp/podman/${MACHINE_NAME}-api.sock}"
+        echo "unix://$SOCKET_PATH"
+        ;;
+    *)
+        echo "unix:///var/run/docker.sock"
+        ;;
+esac

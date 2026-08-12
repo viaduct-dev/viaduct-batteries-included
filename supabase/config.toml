@@ -1,6 +1,10 @@
 # Supabase Local Development Configuration
 # For production setup, see: https://supabase.com/dashboard → Authentication → Providers
 
+# Keep local containers isolated from other projects whose config directory is
+# also named "supabase".
+project_id = "batteries-included"
+
 [api]
 enabled = true
 port = 54321

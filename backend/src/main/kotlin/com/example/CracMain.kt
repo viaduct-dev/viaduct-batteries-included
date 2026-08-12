@@ -14,10 +14,9 @@ import io.ktor.server.engine.*
 import org.crac.Core
 import org.koin.dsl.koinApplication
 import org.koin.logger.slf4jLogger
-import viaduct.api.bootstrap.ViaductTenantAPIBootstrapper
 import viaduct.service.SchemaScopeInfo
-import viaduct.service.runtime.SchemaConfiguration
-import viaduct.service.runtime.StandardViaduct
+import viaduct.service.ViaductBuilder
+import viaduct.service.api.spi.SharedTenantModuleInjectorFactory
 
 private val logger = org.slf4j.LoggerFactory.getLogger("CracMain")
 
@@ -86,18 +85,14 @@ fun main() {
     logger.info("Pre-initializing Viaduct schema...")
 
     val scopes = listOf(
-        SchemaScopeInfo("public", setOf("public")),
-        SchemaScopeInfo("default", setOf("default", "public")),
-        SchemaScopeInfo("admin", setOf("default", "admin", "public"))
-    ).map { SchemaConfiguration.ScopeConfig(it.schemaId.id, it.scopesToApply ?: emptySet()) }
+        SchemaScopeInfo.Scoped("public", setOf("public")),
+        SchemaScopeInfo.Scoped("default", setOf("default", "public")),
+        SchemaScopeInfo.Scoped("admin", setOf("default", "admin", "public")),
+    )
 
-    val viaduct = StandardViaduct.Builder()
-        .withTenantAPIBootstrapperBuilder(
-            ViaductTenantAPIBootstrapper.Builder()
-                .tenantPackagePrefix("com.example")
-                .tenantCodeInjector(cracInjector)
-        )
-        .withSchemaConfiguration(SchemaConfiguration.fromResources(scopes = scopes.toSet()))
+    val viaduct = ViaductBuilder()
+        .withTenantModuleInjectorFactory(SharedTenantModuleInjectorFactory(cracInjector))
+        .withScopedSchemas(scopes)
         .withCheckerExecutorFactoryCreator { _ ->
             GroupMembershipCheckerExecutorFactory(groupService)
         }

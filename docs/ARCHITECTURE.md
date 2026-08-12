@@ -39,7 +39,7 @@ The frontend sends GraphQL requests to the Viaduct backend, which creates an aut
   - PostgreSQL: `postgresql://postgres:postgres@127.0.0.1:54322/postgres`
   - Studio: http://127.0.0.1:54323
 - **Production**: Hosted Supabase project (supabase.com)
-- **Migrations**: `schema/migrations/*.sql` — applied automatically on deploy and by `supabase start` locally (via symlink at `supabase/migrations`)
+- **Migrations**: `schema/migrations/*.sql` — applied automatically on deploy and by `mise run supabase-start` locally (via symlink at `supabase/migrations`)
 - **Auth**: Supabase Auth with email provider. JWT expiry: 3600s. Email confirmation disabled for local dev.
 
 ## Tool Management — mise
@@ -49,8 +49,11 @@ The frontend sends GraphQL requests to the Viaduct backend, which creates an aut
 - **Java JDK 21** — Viaduct/Kotlin backend
 - **Podman** — Container runtime for local Supabase
 - **Supabase CLI** — Local Supabase management
+- **Render CLI** — Production deployment inspection and management
 
-Environment variables are set automatically in `mise.toml` — no manual exports needed.
+Environment variables are set automatically in `mise.toml` — no manual exports needed. The
+Supabase CLI version is pinned, and the wrapper bootstraps its native binary when the mise UBI
+package contains only the launcher.
 
 Key tasks:
 
@@ -64,23 +67,28 @@ Key tasks:
 | `mise run status` | Show Podman and Supabase status |
 | `mise run stop` | Stop Supabase and Podman |
 | `mise run diagnose-podman` | Debug Podman socket issues |
+| `mise run get-docker-host` | Print the detected Podman API socket |
 
-## CRaC (Docker Production Startup)
+## CRaC Production Startup
 
-The production Docker image (`backend/Dockerfile`) uses [CRaC](https://openjdk.org/projects/crac/) with Azul Zulu Warp to snapshot the JVM heap after full initialization. At runtime, the container restores from the snapshot in ~368ms instead of doing a cold JVM start. This is transparent — no application code changes needed for normal development.
+Production uses [CRaC](https://openjdk.org/projects/crac/) with Azul Zulu Warp to snapshot the JVM heap after full initialization. At runtime, the application restores from the snapshot instead of doing a cold JVM start. CRaC is provided by the Azul JDK and does not depend on Docker-specific checkpoint support; `backend/Dockerfile` only packages the deployment.
 
 ## Database Migrations
 
 Migrations live in `schema/migrations/` and are applied in two ways:
 
-- **Locally**: `supabase start` applies them automatically (via symlink `supabase/migrations` -> `../schema/migrations`)
+- **Locally**: `mise run supabase-start` starts the isolated local project and applies pending migrations from the `supabase/migrations` symlink
 - **Production**: The Docker build's `migrations` stage runs them using `SUPABASE_SERVICE_ROLE_KEY` (passed as a build arg, never baked into the final image)
 
-To reset locally: `supabase db reset`
+To reset locally: `.mise/scripts/supabase.sh db reset --workdir "$(pwd)"`
 
 ## Podman
 
-Supabase CLI uses Docker-compatible containers. This project uses Podman instead of Docker. The `DOCKER_HOST` environment variable is auto-detected from the Podman machine socket via `.mise/scripts/get-podman-socket.sh`.
+Supabase CLI uses Docker-compatible containers. This project uses Podman instead of Docker. The `DOCKER_HOST` environment variable is auto-detected on macOS, Linux, and WSL via `.mise/scripts/get-podman-socket.sh`. The startup task also starts the API socket and recovers stopped project containers while preserving volumes.
+
+The detector honors `CONTAINER_HOST`, asks Podman for its default local connection and native Linux service path, then falls back to the platform defaults.
+
+The local Supabase project ID is `batteries-included`, so its containers cannot be mistaken for another checkout whose configuration directory is also named `supabase`.
 
 ### Troubleshooting
 
@@ -92,16 +100,18 @@ podman machine stop && podman machine start   # Restart
 podman machine init && podman machine start   # First time setup
 ```
 
+On Linux and WSL, `mise run podman-start` starts a rootless user socket when one is not already available. Do not run mise with `sudo`.
+
 **Backend won't start:**
 
 1. `mise install` — ensure Java 21 and tools are installed
-2. `supabase status` — ensure Supabase is running
+2. `mise run status` — ensure the Podman API and isolated Supabase project are healthy
 3. Check `java -version` shows 21
 
 **Database needs reset:**
 
 ```bash
-supabase db reset    # Reapply all migrations from scratch
+.mise/scripts/supabase.sh db reset --workdir "$(pwd)"
 ```
 
 ## Deployment — Render.com

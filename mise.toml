@@ -1,7 +1,8 @@
 [tools]
 java = "21"
 podman = "latest"
-"ubi:supabase/cli" = { version = "latest", exe = "supabase" }
+"ubi:supabase/cli" = { version = "2.104.0", exe = "supabase" }
+"pipx:render-cli" = "latest"
 
 [env]
 # Podman configuration - dynamically detect socket path
@@ -19,23 +20,19 @@ VITE_SUPABASE_PROJECT_ID = "mgmfegesdvielbmhixcz"
 
 # Dependency startup tasks
 [tasks.podman-start]
-description = "Start Podman machine"
+description = "Start Podman and its Docker-compatible API"
 run = """
-# Start podman machine if not running
-podman machine start 2>&1 || echo 'Podman already running'
-# Verify socket is accessible
-if ! podman info >/dev/null 2>&1; then
-  echo "WARNING: Podman socket not accessible. Checking connections..."
-  podman system connection list
-  echo "Waiting for socket to be ready..."
-  sleep 2
+if ! bash .mise/scripts/start-podman.sh; then
+  echo ""
+  echo "Podman failed to start. Collecting diagnostics..."
+  bash .mise/scripts/diagnose-local-deps.sh || true
+  exit 1
 fi
 """
 
 [tasks.supabase-start]
-description = "Start local Supabase"
-depends = ["podman-start"]
-run = "supabase start"
+description = "Start the local Supabase project"
+run = "bash .mise/scripts/start-supabase.sh"
 
 [tasks.deps-start]
 description = "Start all dependencies (Podman + Supabase)"
@@ -95,12 +92,16 @@ echo "Development processes stopped"
 """
 
 [tasks.stop]
-description = "Stop all services"
+description = "Stop local Supabase and, on macOS, the Podman machine"
 run = """
-echo "Stopping Supabase..."
-supabase stop
-echo "Stopping Podman..."
-podman machine stop
+echo "Stopping the batteries-included Supabase project..."
+.mise/scripts/supabase.sh stop --workdir "$(pwd)"
+if [ "$(uname -s)" = "Darwin" ]; then
+  echo "Stopping Podman machine..."
+  podman machine stop
+else
+  echo "Leaving the native Podman service running."
+fi
 """
 
 [tasks.restart]
@@ -114,49 +115,17 @@ mise run dev
 
 [tasks.status]
 description = "Check status of all services"
-run = """
-echo "=== Podman Status ==="
-podman machine list
-echo ""
-echo "=== Podman Connection Info ==="
-podman system connection list
-echo ""
-echo "=== Supabase Status ==="
-supabase status
-"""
+run = "bash .mise/scripts/diagnose-local-deps.sh"
 
 [tasks.test]
 description = "Run backend tests (Gradle starts Supabase containers automatically)"
 dir = "backend"
 run = "./gradlew test"
 
+[tasks.get-docker-host]
+description = "Print the current DOCKER_HOST value"
+run = "bash .mise/scripts/get-podman-socket.sh"
+
 [tasks.diagnose-podman]
-description = "Diagnose Podman socket configuration"
-run = """
-echo "=== Running Podman Diagnostics ==="
-echo ""
-echo "=== Podman Machine Info ==="
-podman machine list
-echo ""
-echo "=== Podman Connection Info ==="
-podman system connection list
-echo ""
-echo "=== Checking Socket Paths ==="
-if [ -d /tmp/podman ]; then
-  echo "Found /tmp/podman directory:"
-  ls -la /tmp/podman/*.sock 2>/dev/null || echo "No sockets found in /tmp/podman"
-else
-  echo "/tmp/podman directory not found"
-fi
-echo ""
-echo "=== Environment Variables ==="
-echo "DOCKER_HOST: $DOCKER_HOST"
-echo ""
-echo "=== Podman Info (checking connectivity) ==="
-if podman info >/dev/null 2>&1; then
-  echo "✓ Podman is accessible"
-  echo "Podman Version: $(podman version --format json | grep -o '"Version":"[^"]*' | head -1 | cut -d'"' -f4)"
-else
-  echo "✗ Cannot connect to Podman"
-fi
-"""
+description = "Diagnose Podman, its API socket, and local Supabase"
+run = "bash .mise/scripts/diagnose-local-deps.sh"
