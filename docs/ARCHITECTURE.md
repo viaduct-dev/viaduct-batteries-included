@@ -86,6 +86,8 @@ To reset locally: `.mise/scripts/supabase.sh db reset --workdir "$(pwd)"`
 
 Supabase CLI uses Docker-compatible containers. This project uses Podman instead of Docker. The `DOCKER_HOST` environment variable is auto-detected on macOS, Linux, and WSL via `.mise/scripts/get-podman-socket.sh`. The startup task also starts the API socket and recovers stopped project containers while preserving volumes.
 
+The detector honors `CONTAINER_HOST`, asks Podman for its default local connection and native Linux service path, then falls back to the platform defaults.
+
 The local Supabase project ID is `batteries-included`, so its containers cannot be mistaken for another checkout whose configuration directory is also named `supabase`.
 
 ### Troubleshooting
