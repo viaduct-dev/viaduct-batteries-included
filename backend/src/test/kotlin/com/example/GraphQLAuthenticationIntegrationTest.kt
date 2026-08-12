@@ -21,10 +21,9 @@ import io.ktor.server.testing.*
 import kotlinx.coroutines.runBlocking
 import org.koin.dsl.koinApplication
 import org.koin.logger.slf4jLogger
-import viaduct.service.BasicViaductFactory
-import viaduct.service.SchemaRegistrationInfo
 import viaduct.service.SchemaScopeInfo
-import viaduct.service.TenantRegistrationInfo
+import viaduct.service.ViaductBuilder
+import viaduct.service.api.spi.SharedTenantModuleInjectorFactory
 
 /**
  * Integration test for GraphQL authentication with Supabase.
@@ -47,19 +46,16 @@ class GraphQLAuthenticationIntegrationTest : FunSpec({
     // Initialize Viaduct and Koin (mirrors CracMain Phase 1)
     val cracInjector = DelegatingTenantCodeInjector()
 
-    val viaduct = BasicViaductFactory.create(
-        schemaRegistrationInfo = SchemaRegistrationInfo(
-            scopes = listOf(
-                SchemaScopeInfo("public", setOf("public")),
-                SchemaScopeInfo("default", setOf("default", "public")),
-                SchemaScopeInfo("admin", setOf("default", "admin", "public"))
-            )
-        ),
-        tenantRegistrationInfo = TenantRegistrationInfo(
-            tenantPackagePrefix = "com.example",
-            tenantCodeInjector = cracInjector
-        )
+    val scopes = listOf(
+        SchemaScopeInfo.Scoped("public", setOf("public")),
+        SchemaScopeInfo.Scoped("default", setOf("default", "public")),
+        SchemaScopeInfo.Scoped("admin", setOf("default", "admin", "public")),
     )
+
+    val viaduct = ViaductBuilder()
+        .withTenantModuleInjectorFactory(SharedTenantModuleInjectorFactory(cracInjector))
+        .withScopedSchemas(scopes)
+        .build()
 
     val koin = koinApplication {
         slf4jLogger()

@@ -7,25 +7,19 @@ plugins {
     application
 }
 
-viaductApplication {
-    modulePackagePrefix.set("com.example")
-}
-
-viaductModule {
-    modulePackageSuffix.set("resolvers")
-}
-
 dependencies {
-    // Fat jars: api/runtime for compile-time types; runtime also provides all Viaduct
-    // classes at runtime (single shadow jar avoids duplicate wiring-*.jar names in distTar).
+    // Keep the API/runtime available for compilation and package the buildtime fat jar
+    // so service SPI classes are present without duplicate wiring jar names in installDist.
     compileOnly("com.airbnb.viaduct:api:${libs.versions.viaduct.get()}")
     compileOnly("com.airbnb.viaduct:runtime:${libs.versions.viaduct.get()}")
     compileOnly("com.airbnb.viaduct:buildtime:${libs.versions.viaduct.get()}")
+    runtimeOnly("com.airbnb.viaduct:buildtime:${libs.versions.viaduct.get()}")
     implementation("com.airbnb.viaduct:runtime:${libs.versions.viaduct.get()}")
     compileOnly("javax.inject:javax.inject:1")
     testCompileOnly("com.airbnb.viaduct:api:${libs.versions.viaduct.get()}")
     testImplementation("com.airbnb.viaduct:api:${libs.versions.viaduct.get()}")
     testCompileOnly("com.airbnb.viaduct:runtime:${libs.versions.viaduct.get()}")
+    testImplementation("com.airbnb.viaduct:buildtime:${libs.versions.viaduct.get()}")
     testCompileOnly("javax.inject:javax.inject:1")
 
     // Ktor server (upgraded to 3.2.0 for Koin 4.x compatibility)

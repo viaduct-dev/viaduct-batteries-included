@@ -41,7 +41,7 @@ class GroupMembershipCheckerExecutor(
 
     override suspend fun execute(
         arguments: Map<String, Any?>,
-        objectDataMap: Map<String, EngineObjectData>,
+        objectDataMap: Map<String, EngineObjectData.Sync>,
         context: EngineExecutionContext,
         checkerType: CheckerExecutor.CheckerType,
     ): CheckerResult {
@@ -52,7 +52,7 @@ class GroupMembershipCheckerExecutor(
             ?: return GroupMembershipError("Could not determine group ID for access check")
 
         val groupId = try {
-            context.globalIDCodec.deserialize(encodedId).second
+            context.globalIDCodec.deserialize(encodedId).localID
         } catch (e: IllegalArgumentException) {
             return GroupMembershipError("Malformed group ID: ${e.message}")
         }
